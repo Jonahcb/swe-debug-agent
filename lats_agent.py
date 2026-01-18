@@ -701,11 +701,7 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
                 "python",
                 "-m",
                 "unittest",
-                "discover",
-                "-s",
-                str(sglang_workspace / "test" / "registered" / "lora"),
-                "-p",
-                "test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLogprobDifference.test_moe_lora_logprob_comparison_full",
+                "test.registered.lora.test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLoprobDiff.test_moe_lora_logprob_comparison_full",
             ]
 
             # Set environment to use GPU 2 (matching the TEST_COMMAND configuration)
