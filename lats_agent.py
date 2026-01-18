@@ -696,12 +696,13 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
                 gpu_manager.prepare_for_test_execution()
 
             result = subprocess.run(
-                TEST_COMMAND.split(),
+                TEST_COMMAND,
                 capture_output=True,
                 text=True,
                 timeout=TEST_TIMEOUT,
                 cwd=str(workspace),
                 env={**os.environ, "PYTHONPATH": str(workspace)},
+                shell=True,
             )
 
             output = ""
