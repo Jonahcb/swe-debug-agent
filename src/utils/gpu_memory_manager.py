@@ -190,55 +190,94 @@ class GPUMemoryManager:
             return False
 
         try:
-            # Get current memory info
-            mem_info = self.get_gpu_memory_info()
-            if "error" in mem_info:
-                print(f"⚠️ Cannot reserve GPU memory: {mem_info['error']}")
+            # Get memory info before allocation
+            mem_info_before = self.get_gpu_memory_info()
+            if "error" in mem_info_before:
+                print(f"⚠️ Cannot reserve GPU memory: {mem_info_before['error']}")
                 return False
 
+            initial_allocated_bytes = mem_info_before.get("allocated_gb", 0) * (1024**3)
             reserve_bytes = self._gb_to_bytes(self.reserve_gb)
 
             print(f"🔒 Reserving {self.reserve_gb:.1f} GB GPU memory...")
-            # Reserve the full requested amount
+            print(f"   Initial allocated memory: {mem_info_before.get('allocated_gb', 0):.2f} GB")
 
             # Reserve memory by allocating tensors of different sizes
             # This prevents other processes from claiming the memory
-            tensor_sizes = [
-                512 * 1024 * 1024,
-                256 * 1024 * 1024,
-                128 * 1024 * 1024,
-                64 * 1024 * 1024,
-            ]  # 512MB, 256MB, 128MB, 64MB
+            # Use smaller chunk sizes to handle memory fragmentation better
+            base_sizes = [
+                128 * 1024 * 1024,  # 128MB
+                64 * 1024 * 1024,  # 64MB
+                32 * 1024 * 1024,  # 32MB
+                16 * 1024 * 1024,  # 16MB
+                8 * 1024 * 1024,  # 8MB
+                4 * 1024 * 1024,  # 4MB
+            ]
 
             allocated = 0
-            for size in tensor_sizes:
-                if allocated >= reserve_bytes:
+            remaining = reserve_bytes
+
+            # Try to allocate in larger chunks first, then smaller ones
+            for base_size in base_sizes:
+                if remaining <= 0:
                     break
 
-                remaining = reserve_bytes - allocated
-                actual_size = min(size, remaining)
+                # Calculate how many of this size chunk we need
+                chunks_needed = remaining // base_size
+                if chunks_needed == 0:
+                    continue
 
-                try:
-                    tensor = torch.zeros(actual_size // 4, dtype=torch.float32, device=self.device)
-                    self.reserved_tensors.append(tensor)
-                    allocated += actual_size
-                except RuntimeError as e:
-                    if "out of memory" in str(e).lower():
-                        print(f"❌ Out of memory during reservation: {e}")
-                        raise e
-                    else:
-                        raise e
+                # Try to allocate up to chunks_needed, but be prepared to allocate fewer
+                for _ in range(
+                    min(chunks_needed, 10)
+                ):  # Limit to 10 chunks per size to avoid too many small allocations
+                    if remaining <= 0:
+                        break
 
-            total_reserved = sum(t.numel() * t.element_size() for t in self.reserved_tensors)
-            total_reserved_gb = total_reserved / (1024**3)
+                    actual_size = min(base_size, remaining)
 
-            if total_reserved_gb >= self.reserve_gb:
+                    try:
+                        # Ensure actual_size is divisible by 4 for float32
+                        num_elements = actual_size // 4
+                        if num_elements > 0:
+                            tensor = torch.zeros(
+                                num_elements, dtype=torch.float32, device=self.device
+                            )
+                            self.reserved_tensors.append(tensor)
+                            allocated += num_elements * 4  # Actual bytes allocated for this tensor
+                            remaining -= num_elements * 4
+                    except RuntimeError as e:
+                        if "out of memory" in str(e).lower():
+                            # Try smaller allocations if this size fails
+                            break
+                        else:
+                            raise e
+
+            # Check actual memory allocated by measuring the difference
+            torch.cuda.synchronize(self.device)
+            mem_info_after = self.get_gpu_memory_info()
+            final_allocated_bytes = mem_info_after.get("allocated_gb", 0) * (1024**3)
+            actual_reserved_bytes = final_allocated_bytes - initial_allocated_bytes
+            actual_reserved_gb = actual_reserved_bytes / (1024**3)
+
+            # Calculate tensor size for comparison
+            tensor_bytes = sum(t.numel() * t.element_size() for t in self.reserved_tensors)
+            tensor_gb = tensor_bytes / (1024**3)
+
+            print(f"   Tensor data size: {tensor_gb:.2f} GB")
+            print(f"   Actual GPU memory increase: {actual_reserved_gb:.2f} GB")
+
+            # Success if we reserved at least 80% of requested amount (accounting for overhead)
+            min_acceptable_gb = self.reserve_gb * 0.8
+            if actual_reserved_gb >= min_acceptable_gb:
                 self._memory_reserved = True
-                print(f"✅ Successfully reserved {total_reserved_gb:.2f} GB GPU memory")
+                print(
+                    f"✅ Successfully reserved {actual_reserved_gb:.2f} GB GPU memory (requested: {self.reserve_gb:.2f} GB)"
+                )
                 return True
             else:
                 print(
-                    f"❌ Failed to reserve requested amount: got {total_reserved_gb:.2f} GB, needed {self.reserve_gb:.2f} GB"
+                    f"❌ Failed to reserve requested amount: got {actual_reserved_gb:.2f} GB, needed {min_acceptable_gb:.2f} GB (80% of {self.reserve_gb:.2f} GB)"
                 )
                 self.release_memory()  # Clean up partial allocations
                 return False
