@@ -103,7 +103,7 @@ class Settings:
 
     # GPU memory management settings
     gpu_memory_reserve_gb: float = 2.0  # Amount of GPU memory to reserve in GB
-    gpu_device: int = 0  # CUDA device ID for memory reservation
+    gpu_device: int = 2  # CUDA device ID for memory reservation
     gpu_memory_enabled: bool = True  # Enable GPU memory reservation
 
     # Test execution settings

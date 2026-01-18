@@ -705,13 +705,17 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
                 "-s",
                 str(sglang_workspace / "test" / "registered" / "lora"),
                 "-p",
-                "test_lora_hf_sgl_logprob_diff.py",
+                "test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLogprobDifference.test_moe_lora_logprob_comparison_full",
             ]
+
+            # Set environment to use GPU 2 (matching the TEST_COMMAND configuration)
+            test_env = os.environ.copy()
+            test_env["CUDA_VISIBLE_DEVICES"] = "2"
 
             result = subprocess.run(
                 cmd,
                 cwd=str(workspace),
-                env=os.environ,
+                env=test_env,
                 capture_output=True,
                 text=True,
             )
