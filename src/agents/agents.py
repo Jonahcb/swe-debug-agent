@@ -4,13 +4,13 @@ import os
 from pathlib import Path
 
 import yaml
-
 from langsmith import traceable
 
 from src.agents.base import create_agent
 from src.state import AgentState
 from src.tools.langchain_tools import (
     ARCHITECT_TOOLS,
+    CODER_TOOLS,
     CRITIC_TOOLS,
     EXTERNAL_LIBRARIAN_TOOLS,
     INTERNAL_LIBRARIAN_TOOLS,
@@ -296,7 +296,7 @@ IMPORTANT: As a subagent, you must:
         },
     ]
 
-    agent = create_agent("coder", system_prompt, subagents=coder_subagents)
+    agent = create_agent("coder", system_prompt, subagents=coder_subagents, tools=CODER_TOOLS)
 
     result = agent.invoke({"messages": state["messages"]})
     return {
