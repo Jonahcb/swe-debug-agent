@@ -695,13 +695,13 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             if gpu_manager and gpu_manager.framework_reservation_active:
                 gpu_manager.prepare_for_test_execution()
 
-            sglang_workspace = Path("/raid/home/chenyang/jonahbernard/sglang")
+            sglang_workspace = Path("/raid/home/chenyang/jonahbernard/sglang/test/registered/lora")
 
             cmd = [
                 "python",
                 "-m",
                 "unittest",
-                "test.registered.lora.test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLoprobDiff.test_moe_lora_logprob_comparison_full",
+                "test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLogprobDifference.test_moe_lora_logprob_comparison_full",
             ]
 
             # Set environment to use GPU 2 (matching the TEST_COMMAND configuration)
