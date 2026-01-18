@@ -446,6 +446,45 @@ def restore_selected_node_files(workspace_dir: str) -> None:
     # Note: We keep the session backups for future restorations
 
 
+def filter_lora_test_output(output: str) -> str:
+    """
+    Filter LoRA test output to extract only the relevant comparison results.
+
+    This removes the verbose model loading information and keeps only the
+    logprob comparison results that are useful for debugging.
+
+    Args:
+        output: Raw test output from LoRA comparison test
+
+    Returns:
+        Filtered output containing only the comparison results
+    """
+    # Look for the start marker
+    start_marker = "Comparing Log Probabilities"
+    start_idx = output.find(start_marker)
+
+    if start_idx == -1:
+        # If we can't find the comparison section, the test probably failed
+        # before running the actual comparison. Return the full output.
+        return output
+
+    # Look for the end marker (String Statistics section)
+    end_marker = "String Statistics:"
+    end_idx = output.find(end_marker, start_idx)
+
+    if end_idx == -1:
+        # If we can't find the end marker, return from start to end of output
+        return output[start_idx:]
+    else:
+        # Find the end of the String Statistics line
+        # Look for the next newline after the end marker
+        next_newline = output.find("\n", end_idx)
+        if next_newline == -1:
+            return output[start_idx:]
+        else:
+            return output[start_idx:next_newline]
+
+
 def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
     """
     Execute test with the code snapshot from the given node.
@@ -678,13 +717,16 @@ String Statistics:
                 output += "\n\n⚠️ CRITICAL: SEGMENTATION FAULT DETECTED!\n"
                 output += "The code caused a memory access violation.\n"
 
-            rt.end(outputs={"output": output[:500], "return_code": return_code})
+            # Filter test output to extract only relevant LoRA comparison results
+            filtered_output = filter_lora_test_output(output)
+
+            rt.end(outputs={"output": filtered_output[:500], "return_code": return_code})
 
             # Immediately restore GPU memory reservation after test completion
             if gpu_manager:
                 gpu_manager.restore_framework_reservation()
 
-            return output, return_code
+            return filtered_output, return_code
 
         except subprocess.TimeoutExpired:
             rt.end(outputs={"error": "timeout", "timeout_seconds": TEST_TIMEOUT})
