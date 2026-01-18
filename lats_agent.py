@@ -541,141 +541,141 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
     # ----------------------------------------------------------
     # Temporary for testing
 
-#     fake_output = """----------------------------------------
-# Prompt 1
-# ----------------------------------------
-# LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
+    #     fake_output = """----------------------------------------
+    # Prompt 1
+    # ----------------------------------------
+    # LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
 
-# Prefill logprobs:
-#   Shape:           [4, 5]
-#   Max difference:  6.472468e-02
-#   Mean difference: 1.176369e-02
-#   Status:          PASS (threshold: 1e-01)
+    # Prefill logprobs:
+    #   Shape:           [4, 5]
+    #   Max difference:  6.472468e-02
+    #   Mean difference: 1.176369e-02
+    #   Status:          PASS (threshold: 1e-01)
 
-# Decode logprobs:
-#   Shape:           [32, 5]
-#   Max difference:  7.100700e+00
-#   Mean difference: 1.039451e+00
-#   Status:          FAIL (threshold: 1e-01)
+    # Decode logprobs:
+    #   Shape:           [32, 5]
+    #   Max difference:  7.100700e+00
+    #   Mean difference: 1.039451e+00
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Output strings:
-#   Status:      DIFFER
-#   SGLang:       leading provider of software solutions for the global energy industry. SGL's software solutions are used by more than 1,000 companies in 10
-#   HuggingFace:  leading provider of software solutions for the global steel industry. SGL is a global leader in the development and implementation of software solutions for the steel industry. SGL
+    # Output strings:
+    #   Status:      DIFFER
+    #   SGLang:       leading provider of software solutions for the global energy industry. SGL's software solutions are used by more than 1,000 companies in 10
+    #   HuggingFace:  leading provider of software solutions for the global steel industry. SGL is a global leader in the development and implementation of software solutions for the steel industry. SGL
 
-# ----------------------------------------
-# Prompt 2
-# ----------------------------------------
-# LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
+    # ----------------------------------------
+    # Prompt 2
+    # ----------------------------------------
+    # LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
 
-# Prefill logprobs:
-#   Shape:           [9, 5]
-#   Max difference:  1.736760e-01
-#   Mean difference: 2.966831e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Prefill logprobs:
+    #   Shape:           [9, 5]
+    #   Max difference:  1.736760e-01
+    #   Mean difference: 2.966831e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Decode logprobs:
-#   Shape:           [32, 5]
-#   Max difference:  2.816558e-01
-#   Mean difference: 3.807396e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Decode logprobs:
+    #   Shape:           [32, 5]
+    #   Max difference:  2.816558e-01
+    #   Mean difference: 3.807396e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Output strings:
-#   Status:      MATCH
-#   SGLang:       creating machines that can perform tasks that would typically require human intelligence. AI has the potential to revolutionize the way we live and work, and it is already being
-#   HuggingFace:  creating machines that can perform tasks that would typically require human intelligence. AI has the potential to revolutionize the way we live and work, and it is already being
+    # Output strings:
+    #   Status:      MATCH
+    #   SGLang:       creating machines that can perform tasks that would typically require human intelligence. AI has the potential to revolutionize the way we live and work, and it is already being
+    #   HuggingFace:  creating machines that can perform tasks that would typically require human intelligence. AI has the potential to revolutionize the way we live and work, and it is already being
 
-# ----------------------------------------
-# Prompt 3
-# ----------------------------------------
-# LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
+    # ----------------------------------------
+    # Prompt 3
+    # ----------------------------------------
+    # LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
 
-# Prefill logprobs:
-#   Shape:           [6, 5]
-#   Max difference:  1.380231e-01
-#   Mean difference: 2.518422e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Prefill logprobs:
+    #   Shape:           [6, 5]
+    #   Max difference:  1.380231e-01
+    #   Mean difference: 2.518422e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Decode logprobs:
-#   Shape:           [32, 5]
-#   Max difference:  1.874228e-01
-#   Mean difference: 3.678390e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Decode logprobs:
+    #   Shape:           [32, 5]
+    #   Max difference:  1.874228e-01
+    #   Mean difference: 3.678390e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Output strings:
-#   Status:      MATCH
-#   SGLang:       computers and computing. It includes the theory of computation, algorithms, programming languages, software, hardware, and the interactions between all of these. Computer science is the
-#   HuggingFace:  computers and computing. It includes the theory of computation, algorithms, programming languages, software, hardware, and the interactions between all of these. Computer science is the
+    # Output strings:
+    #   Status:      MATCH
+    #   SGLang:       computers and computing. It includes the theory of computation, algorithms, programming languages, software, hardware, and the interactions between all of these. Computer science is the
+    #   HuggingFace:  computers and computing. It includes the theory of computation, algorithms, programming languages, software, hardware, and the interactions between all of these. Computer science is the
 
-# ----------------------------------------
-# Prompt 4
-# ----------------------------------------
-# LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
+    # ----------------------------------------
+    # Prompt 4
+    # ----------------------------------------
+    # LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
 
-# Prefill logprobs:
-#   Shape:           [5, 5]
-#   Max difference:  4.049866e-01
-#   Mean difference: 5.439247e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Prefill logprobs:
+    #   Shape:           [5, 5]
+    #   Max difference:  4.049866e-01
+    #   Mean difference: 5.439247e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Decode logprobs:
-#   Shape:           [32, 5]
-#   Max difference:  4.049864e-01
-#   Mean difference: 3.622374e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Decode logprobs:
+    #   Shape:           [32, 5]
+    #   Max difference:  4.049864e-01
+    #   Mean difference: 3.622374e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Output strings:
-#   Status:      MATCH
-#   SGLang:       Once upon a time, in a small village nestled in the heart of a dense forest, there lived a young girl named Lily. She was known throughout the village
-#   HuggingFace:  Once upon a time, in a small village nestled in the heart of a dense forest, there lived a young girl named Lily. She was known throughout the village
+    # Output strings:
+    #   Status:      MATCH
+    #   SGLang:       Once upon a time, in a small village nestled in the heart of a dense forest, there lived a young girl named Lily. She was known throughout the village
+    #   HuggingFace:  Once upon a time, in a small village nestled in the heart of a dense forest, there lived a young girl named Lily. She was known throughout the village
 
-# ----------------------------------------
-# Prompt 5
-# ----------------------------------------
-# LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
+    # ----------------------------------------
+    # Prompt 5
+    # ----------------------------------------
+    # LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
 
-# Prefill logprobs:
-#   Shape:           [9, 5]
-#   Max difference:  3.239720e-01
-#   Mean difference: 2.978070e-02
-#   Status:          FAIL (threshold: 1e-01)
+    # Prefill logprobs:
+    #   Shape:           [9, 5]
+    #   Max difference:  3.239720e-01
+    #   Mean difference: 2.978070e-02
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Decode logprobs:
-#   Shape:           [32, 5]
-#   Max difference:  1.144438e+01
-#   Mean difference: 2.303469e+00
-#   Status:          FAIL (threshold: 1e-01)
+    # Decode logprobs:
+    #   Shape:           [32, 5]
+    #   Max difference:  1.144438e+01
+    #   Mean difference: 2.303469e+00
+    #   Status:          FAIL (threshold: 1e-01)
 
-# Output strings:
-#   Status:      DIFFER
-#   SGLang:       Please provide a detailed explanation of each component and its function. Additionally, can you explain how these components work together to perform tasks? Please provide a visual representation of
-#   HuggingFace:  A computer consists of several main components, including:
+    # Output strings:
+    #   Status:      DIFFER
+    #   SGLang:       Please provide a detailed explanation of each component and its function. Additionally, can you explain how these components work together to perform tasks? Please provide a visual representation of
+    #   HuggingFace:  A computer consists of several main components, including:
 
-# 1. Central Processing Unit (CPU): This is the brain of the computer and performs all the calculations and logical
+    # 1. Central Processing Unit (CPU): This is the brain of the computer and performs all the calculations and logical
 
-# ================================================================================
-# Overall Statistics
-# ================================================================================
+    # ================================================================================
+    # Overall Statistics
+    # ================================================================================
 
-# Logprob Differences:
-#   Prefill:
-#     Max of max:   4.049866e-01
-#     Mean of max:  2.210765e-01
-#     Mean of mean: 3.015788e-02
-#   Decode:
-#     Max of max:   1.144438e+01
-#     Mean of max:  3.883830e+00
-#     Mean of mean: 6.908004e-01
+    # Logprob Differences:
+    #   Prefill:
+    #     Max of max:   4.049866e-01
+    #     Mean of max:  2.210765e-01
+    #     Mean of mean: 3.015788e-02
+    #   Decode:
+    #     Max of max:   1.144438e+01
+    #     Mean of max:  3.883830e+00
+    #     Mean of mean: 6.908004e-01
 
-# Logprob Statistics (threshold: 1e-01):
-#   Overall logprob: 0/5 FAILED
-#   Prefill logprob: 1/5
-#   Decode logprob:  0/5
+    # Logprob Statistics (threshold: 1e-01):
+    #   Overall logprob: 0/5 FAILED
+    #   Prefill logprob: 1/5
+    #   Decode logprob:  0/5
 
-# String Statistics:
-#   Output strings:  3/5"""
+    # String Statistics:
+    #   Output strings:  3/5"""
 
-#     return fake_output, 1
+    #     return fake_output, 1
 
     # ----------------------------------------------------------
 
@@ -720,6 +720,12 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             # Filter test output to extract only relevant LoRA comparison results
             filtered_output = filter_lora_test_output(output)
 
+            # Print test output to terminal
+            print(f"\n📄 [TEST OUTPUT] Return code: {return_code}")
+            print("=" * 50)
+            print(filtered_output)
+            print("=" * 50)
+
             rt.end(outputs={"output": filtered_output[:500], "return_code": return_code})
 
             # Immediately restore GPU memory reservation after test completion
@@ -729,21 +735,27 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             return filtered_output, return_code
 
         except subprocess.TimeoutExpired:
+            timeout_message = f"ERROR: Test timed out after {TEST_TIMEOUT} seconds"
+            print(f"\n⏰ [TEST TIMEOUT] {timeout_message}")
+
             rt.end(outputs={"error": "timeout", "timeout_seconds": TEST_TIMEOUT})
 
             # Restore GPU memory reservation on timeout
             if gpu_manager:
                 gpu_manager.restore_framework_reservation()
 
-            return f"ERROR: Test timed out after {TEST_TIMEOUT} seconds", -1
+            return timeout_message, -1
         except Exception as e:
+            error_message = f"ERROR: Failed to run test: {e}"
+            print(f"\n❌ [TEST ERROR] {error_message}")
+
             rt.end(outputs={"error": str(e)})
 
             # Restore GPU memory reservation on error
             if gpu_manager:
                 gpu_manager.restore_framework_reservation()
 
-            return f"ERROR: Failed to run test: {e}", -1
+            return error_message, -1
 
 
 def evaluate_candidate_with_critic(
