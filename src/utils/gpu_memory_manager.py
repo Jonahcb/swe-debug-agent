@@ -16,11 +16,11 @@ during framework idle time.
 
 import atexit
 import gc
-import os
 from typing import Optional
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -28,6 +28,7 @@ except ImportError:
 
 try:
     import cupy as cp
+
     CUPY_AVAILABLE = True
 except ImportError:
     CUPY_AVAILABLE = False
@@ -141,11 +142,11 @@ class GPUMemoryManager:
 
     def _bytes_to_gb(self, bytes_val: int) -> float:
         """Convert bytes to gigabytes."""
-        return bytes_val / (1024 ** 3)
+        return bytes_val / (1024**3)
 
     def _gb_to_bytes(self, gb_val: float) -> int:
         """Convert gigabytes to bytes."""
-        return int(gb_val * (1024 ** 3))
+        return int(gb_val * (1024**3))
 
     def get_gpu_memory_info(self) -> dict:
         """
@@ -172,7 +173,7 @@ class GPUMemoryManager:
                 "allocated_gb": self._bytes_to_gb(allocated_bytes),
                 "reserved_gb": self._bytes_to_gb(reserved_bytes),
                 "free_gb": self._bytes_to_gb(total_bytes - allocated_bytes),
-                "device": self.device
+                "device": self.device,
             }
         except Exception as e:
             return {"error": f"Failed to get GPU memory info: {e}"}
@@ -195,20 +196,19 @@ class GPUMemoryManager:
                 print(f"⚠️ Cannot reserve GPU memory: {mem_info['error']}")
                 return False
 
-            available_gb = mem_info["free_gb"]
             reserve_bytes = self._gb_to_bytes(self.reserve_gb)
 
-            if available_gb < self.reserve_gb:
-                print(f"⚠️ Insufficient GPU memory: {available_gb:.1f} GB available, need {self.reserve_gb:.1f} GB")
-                return False
-
             print(f"🔒 Reserving {self.reserve_gb:.1f} GB GPU memory...")
-            # Calculate how much to reserve (leave some buffer)
-            reserve_bytes = min(reserve_bytes, int(available_gb * 0.8 * (1024 ** 3)))
+            # Reserve the full requested amount
 
             # Reserve memory by allocating tensors of different sizes
             # This prevents other processes from claiming the memory
-            tensor_sizes = [512 * 1024 * 1024, 256 * 1024 * 1024, 128 * 1024 * 1024, 64 * 1024 * 1024]  # 512MB, 256MB, 128MB, 64MB
+            tensor_sizes = [
+                512 * 1024 * 1024,
+                256 * 1024 * 1024,
+                128 * 1024 * 1024,
+                64 * 1024 * 1024,
+            ]  # 512MB, 256MB, 128MB, 64MB
 
             allocated = 0
             for size in tensor_sizes:
@@ -224,19 +224,23 @@ class GPUMemoryManager:
                     allocated += actual_size
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower():
-                        print(f"⚠️ Ran out of memory during reservation, allocated {self._bytes_to_gb(allocated):.2f} GB so far")
-                        break
+                        print(f"❌ Out of memory during reservation: {e}")
+                        raise e
                     else:
                         raise e
 
-            self._memory_reserved = len(self.reserved_tensors) > 0
+            total_reserved = sum(t.numel() * t.element_size() for t in self.reserved_tensors)
+            total_reserved_gb = total_reserved / (1024**3)
 
-            if self._memory_reserved:
-                total_reserved = sum(t.numel() * t.element_size() for t in self.reserved_tensors)
-                print(f"✅ Successfully reserved {total_reserved / (1024**3):.2f} GB GPU memory")
+            if total_reserved_gb >= self.reserve_gb:
+                self._memory_reserved = True
+                print(f"✅ Successfully reserved {total_reserved_gb:.2f} GB GPU memory")
                 return True
             else:
-                print("⚠️ Failed to reserve any GPU memory")
+                print(
+                    f"❌ Failed to reserve requested amount: got {total_reserved_gb:.2f} GB, needed {self.reserve_gb:.2f} GB"
+                )
+                self.release_memory()  # Clean up partial allocations
                 return False
 
         except Exception as e:
@@ -325,15 +329,18 @@ def get_optimal_reserve_amount(device: int = 0) -> float:
 
     total_gb = mem_info["total_gb"]
 
-    # Reserve 20-30% of total GPU memory, but at least 1GB and at most 4GB
-    optimal = max(1.0, min(4.0, total_gb * 0.25))
+    # Reserve 50% of total GPU memory
+    optimal = total_gb * 0.5
     return optimal
 
 
 # Global instance for easy access
 _default_manager = None
 
-def initialize_framework_gpu_reservation(device: int = 0, reserve_gb: Optional[float] = None) -> bool:
+
+def initialize_framework_gpu_reservation(
+    device: int = 0, reserve_gb: Optional[float] = None
+) -> bool:
     """
     Initialize persistent GPU memory reservation for the framework.
 
@@ -356,7 +363,10 @@ def initialize_framework_gpu_reservation(device: int = 0, reserve_gb: Optional[f
 
     return _default_manager.initialize_framework_reservation()
 
-def get_gpu_memory_manager(device: int = 0, reserve_gb: Optional[float] = None, persistent: bool = True) -> GPUMemoryManager:
+
+def get_gpu_memory_manager(
+    device: int = 0, reserve_gb: Optional[float] = None, persistent: bool = True
+) -> GPUMemoryManager:
     """
     Get or create a GPU memory manager instance.
 
@@ -373,7 +383,13 @@ def get_gpu_memory_manager(device: int = 0, reserve_gb: Optional[float] = None, 
     if reserve_gb is None:
         reserve_gb = get_optimal_reserve_amount(device)
 
-    if _default_manager is None or _default_manager.device != device or _default_manager.persistent != persistent:
-        _default_manager = GPUMemoryManager(device=device, reserve_gb=reserve_gb, persistent=persistent)
+    if (
+        _default_manager is None
+        or _default_manager.device != device
+        or _default_manager.persistent != persistent
+    ):
+        _default_manager = GPUMemoryManager(
+            device=device, reserve_gb=reserve_gb, persistent=persistent
+        )
 
     return _default_manager
