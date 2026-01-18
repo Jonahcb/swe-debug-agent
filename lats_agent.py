@@ -695,14 +695,25 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             if gpu_manager and gpu_manager.framework_reservation_active:
                 gpu_manager.prepare_for_test_execution()
 
+            sglang_workspace = Path("/raid/home/chenyang/jonahbernard/sglang")
+
+            cmd = [
+                "python",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                str(sglang_workspace / "test" / "registered" / "lora"),
+                "-p",
+                "test_lora_hf_sgl_logprob_diff.py",
+            ]
+
             result = subprocess.run(
-                TEST_COMMAND,
+                cmd,
+                cwd=str(workspace),
+                env=os.environ,
                 capture_output=True,
                 text=True,
-                timeout=TEST_TIMEOUT,
-                cwd=str(workspace),
-                env={**os.environ, "PYTHONPATH": str(workspace)},
-                shell=True,
             )
 
             output = ""
