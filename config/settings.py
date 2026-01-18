@@ -95,6 +95,9 @@ class Settings:
     # Task-specific settings
     task_name: str = TASK_NAME
     target_test: str = TARGET_TEST_FULL
+    test_base_path: str = field(
+        default_factory=lambda: os.environ.get("TEST_BASE_PATH", TARGET_TEST_FULL)
+    )
     test_command: str = TEST_COMMAND
     max_iterations: int = MAX_DEBUG_ITERATIONS
 

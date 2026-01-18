@@ -92,7 +92,7 @@ IMMUTABLE_PATTERNS = [
 ]
 
 # Test configuration
-TEST_COMMAND = "CUDA_VISIBLE_DEVICES=2 \\\n/raid/home/chenyang/miniconda3/envs/lats/bin/python -m unittest -vv \\\n  test_lora_hf_sgl_logprob_diff.TestLoRAHFSGLLogprobDifference.test_moe_lora_logprob_comparison_full"
+TEST_COMMAND = f"CUDA_VISIBLE_DEVICES=2 \\\n/raid/home/chenyang/miniconda3/envs/lats/bin/python -m unittest -vv \\\n  {settings.test_base_path}"
 TEST_TIMEOUT = 600  # 10 minutes
 
 # LATS configuration
