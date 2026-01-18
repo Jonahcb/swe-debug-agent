@@ -9,6 +9,8 @@ from langchain_core.tools import tool
 from src.tools.github import GitHubClient
 from src.tools.ruff import format_file, lint_file
 
+from config.settings import settings
+
 # =============================================================================
 # Shell / Command Execution Tools
 # =============================================================================
@@ -102,8 +104,12 @@ def run_pytest(test_path: str, verbose: bool = True, timeout: int = 600) -> str:
         Test output with results
     """
     print(f"Running pytest: {test_path}")
-    # TEMPORARY: Return fake test results instead of actually running pytest
-    fake_output = """----------------------------------------
+
+    # Check if we should use mock mode (return fake output instead of running real pytest)
+    if settings.pytest_mock_mode:
+        print("Using mock pytest mode - returning fake test output")
+        # Return fake test results instead of actually running pytest
+        fake_output = """----------------------------------------
 Prompt 1
 ----------------------------------------
 LoRA adapter: sai-lakkshmii/Qwen1.5-MoE-A2.7B-squad-lora-latest
@@ -237,7 +243,24 @@ Logprob Statistics (threshold: 1e-01):
 String Statistics:
   Output strings:  3/5"""
 
-    return fake_output
+        return fake_output
+    else:
+        # Run actual pytest command
+        cmd_parts = ["python", "-m", "pytest"]
+        if verbose:
+            cmd_parts.append("-v")
+        cmd_parts.append(test_path)
+
+        cmd = " ".join(cmd_parts)
+        print(f"Executing: {cmd}")
+
+        try:
+            result = run_command(cmd, timeout=timeout)
+            return result
+        except Exception as e:
+            error_msg = f"Failed to run pytest: {e}"
+            print(f"COMMAND ERROR: {error_msg}")
+            return error_msg
 
 
 # =============================================================================

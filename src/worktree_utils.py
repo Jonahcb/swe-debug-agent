@@ -1,5 +1,7 @@
 """Shared worktree utilities for both LATS and other agent systems."""
 
+import os
+
 from src.state import AgentState
 from src.utils.git_manager import WorktreeManager
 
@@ -9,8 +11,8 @@ def setup_worktree(state: AgentState) -> dict:
     print("🚀 Setting up worktree environment...")
 
     worktree_manager = WorktreeManager(
-        base_repo_path="/Users/jonahbernard/sglangrepo/sglang",
-        worktrees_dir="/Users/jonahbernard/sglangrepo/worktrees",
+        base_repo_path=os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo"),
+        worktrees_dir=os.environ.get("WORKTREES_DIR", "/path/to/worktrees"),
     )
 
     print("📁 WorktreeManager initialized")
@@ -24,8 +26,8 @@ def setup_worktree(state: AgentState) -> dict:
             **state.get("context", {}),
             # Don't store WorktreeManager object in state - it's not serializable
             # Store only the paths needed for cleanup
-            "worktree_base_repo": "/Users/jonahbernard/sglangrepo/sglang",
-            "worktree_worktrees_dir": "/Users/jonahbernard/sglangrepo/worktrees",
+            "worktree_base_repo": os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo"),
+            "worktree_worktrees_dir": os.environ.get("WORKTREES_DIR", "/path/to/worktrees"),
         },
     }
 
@@ -36,9 +38,11 @@ def cleanup_worktree(state: AgentState) -> dict:
     repo_path = state.get("repo_path")
 
     # Recreate WorktreeManager from stored paths instead of retrieving from state
-    base_repo = context.get("worktree_base_repo", "/Users/jonahbernard/sglangrepo/sglang")
+    base_repo = context.get(
+        "worktree_base_repo", os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo")
+    )
     worktrees_dir = context.get(
-        "worktree_worktrees_dir", "/Users/jonahbernard/sglangrepo/worktrees"
+        "worktree_worktrees_dir", os.environ.get("WORKTREES_DIR", "/path/to/worktrees")
     )
 
     if repo_path:

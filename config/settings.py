@@ -81,7 +81,7 @@ class MCPSettings:
 
     github_token: str = field(default_factory=lambda: os.environ.get("GITHUB_TOKEN", ""))
     brave_api_key: str = field(default_factory=lambda: os.environ.get("BRAVE_API_KEY", ""))
-    filesystem_root: str = "/"
+    filesystem_root: str = field(default_factory=lambda: os.environ.get("FILESYSTEM_ROOT", "/"))
 
 
 @dataclass
@@ -102,6 +102,11 @@ class Settings:
     gpu_memory_reserve_gb: float = 2.0  # Amount of GPU memory to reserve in GB
     gpu_device: int = 0  # CUDA device ID for memory reservation
     gpu_memory_enabled: bool = True  # Enable GPU memory reservation
+
+    # Test execution settings
+    pytest_mock_mode: bool = (
+        True  # When True, return fake test output instead of running real pytest
+    )
 
     @classmethod
     def from_env(cls) -> "Settings":
