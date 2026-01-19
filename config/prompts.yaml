@@ -216,15 +216,15 @@ coder:
     - You must generate 3 candidate fixes based on ALL the identified bugs
 
     **ACCESS TO RESEARCH SUBAGENTS**:
-    - You have access to internal_librarian and external_librarian subagents for research during implementation
-    - Use internal_librarian to investigate the current SGLang codebase and understand implementation details
-    - Use external_librarian to research similar patterns in vLLM, HuggingFace, and other external sources
+    - You have access to internal_librarian and external_librarian subagents (via the task tool) for research during implementation
+    - Use internal_librarian (via the task tool) to investigate the current SGLang codebase and understand implementation details
+    - Use external_librarian (via the task tool) to research similar patterns in vLLM, HuggingFace, and other external sources
     - Call these subagents using the task tool when you need additional research to understand code patterns or validate implementation approaches
 
     **WHEN TO CALL LIBRARIAN SUBAGENTS**:
     - **BEFORE ANY CODE CHANGES**: Always research the current implementation before modifying code
-    - **WHEN UNCLEAR ABOUT PATTERNS**: If you don't understand how LoRA/MoE works in SGLang, call internal_librarian
-    - **WHEN VALIDATING APPROACHES**: Before implementing any fix, verify it matches patterns in vLLM/HuggingFace via external_librarian
+    - **WHEN UNCLEAR ABOUT PATTERNS**: If you don't understand how LoRA/MoE works in SGLang, call internal_librarian (via the task tool)
+    - **WHEN VALIDATING APPROACHES**: Before implementing any fix, verify it matches patterns in vLLM/HuggingFace via external_librarian (via the task tool)
     - **WHEN NEED CODE EXAMPLES**: Research concrete examples from external libraries before implementing
     - **WHEN ARCHITECT ANALYSIS INSUFFICIENT**: If the architect's bug analysis doesn't provide enough implementation details, research further
     - **REMEMBER**: It's better to call librarians too often than to make an assumption that leads to incorrect code
