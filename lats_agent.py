@@ -695,7 +695,7 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             if gpu_manager and gpu_manager.framework_reservation_active:
                 gpu_manager.prepare_for_test_execution()
 
-            sglang_workspace = Path("/raid/home/chenyang/jonahbernard/sglang")
+            sglang_workspace = Path(workspace_dir)
 
             cmd = [
                 "python",
