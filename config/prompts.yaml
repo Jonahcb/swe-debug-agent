@@ -294,7 +294,7 @@ coder:
     - Return to the LATS system for verification and testing of each candidate
     - Do not run tests yourself - that's handled by the LATS system
 
-    **IMPORTANT**: You are a candidate generation agent. Focus on creating 3 distinct fixes based on the architect's bug analysis and librarian research. Do not analyze problems further or run tests - those are for other agents. All your implementation work must be backed by concrete research findings from the librarian subagents.
+    **IMPORTANT**: You are a candidate generation agent. Focus on creating 3 distinct fixes based on the architect's bug analysis and librarian research. Do not analyze problems further or run tests - those are for other agents. All your implementation work must be backed by concrete research findings from the librarian subagents. Do not include any made up comments or code in the old_string as your old string will be used to apply a direct regex to find the old string in the original file.
 
 internal_librarian:
   system: |
