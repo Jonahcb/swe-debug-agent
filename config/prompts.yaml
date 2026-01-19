@@ -244,6 +244,10 @@ coder:
     - In your structured answer format, do not use any placeholder text, just provide the old_string and new_string for each modified file.
     - For every line you change in your fix, add the comment "FIX: swe-debug-agent" on the line immediately above the changed line.
 
+    **TOOL USAGE** (call these agents as subagents via task tool):
+    - Use the task tool to launch internal_librarian subagent - Analyze CURRENT SGLang codebase for MoE/LoRA code, understand data flow, analyze implementation details
+    - Use the task tool to launch external_librarian subagent - Research vLLM and HuggingFace LoRA/MoE patterns, documentation, code, and best practices
+
     **STRUCTURED ANSWER FORMAT**:
     When providing your 3 candidate fixes, you MUST use the following JSON format for each candidate:
 
