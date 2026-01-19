@@ -1346,7 +1346,7 @@ Format your response as JSON:
 }}
 ```
 
-IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Use the read_file tool to examine files and ensure your old_string blocks are unique.
+IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Do not make any code up. Do not use any placeholder text.
 """
 
     # Create a mini-state for the coder agent with plan.md context
