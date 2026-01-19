@@ -122,8 +122,8 @@ class Node:
     # Unique identifier for this node
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
 
-    # Complete code snapshots: {"filename": "full_code_content"}
-    code_snapshot: dict[str, str] = field(default_factory=dict)
+    # Code changes as blocks: {"filename": [{"old_string": "...", "new_string": "..."}]}
+    code_changes: dict[str, list[dict]] = field(default_factory=dict)
 
     # Test execution results
     test_output: str = ""
@@ -169,7 +169,7 @@ class Node:
         """Serialize node to dictionary for persistence."""
         return {
             "id": self.id,
-            "code_snapshot": self.code_snapshot,
+            "code_changes": self.code_changes,
             "test_output": self.test_output,
             "return_code": self.return_code,
             "score": self.score,
@@ -504,7 +504,7 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
     workspace = Path(workspace_dir)
 
     # Validate file permissions
-    for filename in node.code_snapshot.keys():
+    for filename in node.code_changes.keys():
         # Normalize filename for validation (remove leading slash if absolute)
         normalized_filename = filename.lstrip("/") if filename.startswith("/") else filename
         if not is_file_mutable(normalized_filename):
@@ -513,9 +513,9 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
                 -1,
             )
 
-    # Write code snapshot to disk
+    # Apply code changes to files
     modified_files = []
-    for filename, content in node.code_snapshot.items():
+    for filename, changes in node.code_changes.items():
         # Ensure filename is relative to workspace (not absolute)
         if filename.startswith("/"):
             # Convert absolute path to relative by removing leading slash
@@ -531,8 +531,31 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
         if filepath.exists() and not backup_path.exists():
             backup_path.write_text(filepath.read_text())
 
-        # Write new content
-        filepath.write_text(content)
+        # Read current file content
+        if filepath.exists():
+            current_content = filepath.read_text()
+        else:
+            current_content = ""
+
+        # Apply each change in sequence
+        modified_content = current_content
+        for change in changes:
+            old_string = change["old_string"]
+            new_string = change["new_string"]
+
+            # Find and replace the old_string with new_string
+            if old_string in modified_content:
+                modified_content = modified_content.replace(
+                    old_string, new_string, 1
+                )  # Replace only first occurrence
+            else:
+                # If old_string not found, log warning but continue
+                print(
+                    f"   ⚠️ Warning: Could not find old_string in {filename}: {old_string[:50]}..."
+                )
+
+        # Write modified content
+        filepath.write_text(modified_content)
         modified_files.append(filepath)
 
     # Store modified files for potential restoration
@@ -790,15 +813,19 @@ def evaluate_candidate_with_critic(
     """
     print(f"   🤔 Evaluating candidate {candidate.id} with critic...")
 
-    # Get the modified files (full content)
+    # Get the modified files (showing changes)
     modified_files_info = ""
-    for filename, content in candidate.code_snapshot.items():
-        modified_files_info += f"\n### {filename}:\n```\n{content}\n```"
+    for filename, changes in candidate.code_changes.items():
+        modified_files_info += f"\n### {filename}:\n"
+        for i, change in enumerate(changes):
+            modified_files_info += f"**Change {i + 1}:**\n"
+            modified_files_info += f"**Old code:**\n```\n{change['old_string']}\n```\n"
+            modified_files_info += f"**New code:**\n```\n{change['new_string']}\n```\n"
 
     # Extract the relevant file content for display
     original_file = (
-        list(candidate.code_snapshot.keys())[0]
-        if candidate.code_snapshot
+        list(candidate.code_changes.keys())[0]
+        if candidate.code_changes
         else "python/sglang/srt/lora/layers.py"
     )
 
@@ -951,9 +978,9 @@ def select_node(state: TreeState) -> dict:
     # This enables building upon partial solutions
     workspace_dir = state.get("repo_path")
 
-    if current.code_snapshot:
-        print(f"   Applying {len(current.code_snapshot)} file(s) from selected node to worktree...")
-        for filename, content in current.code_snapshot.items():
+    if current.code_changes:
+        print(f"   Applying {len(current.code_changes)} file(s) from selected node to worktree...")
+        for filename, changes in current.code_changes.items():
             # Ensure filename is relative to workspace (not absolute)
             if filename.startswith("/"):
                 # Convert absolute path to relative by removing leading slash
@@ -968,17 +995,35 @@ def select_node(state: TreeState) -> dict:
                 backup_path.write_text(filepath.read_text())
                 print(f"     Backed up {filename}")
 
+            # Read current content and apply changes
+            if filepath.exists():
+                current_content = filepath.read_text()
+            else:
+                current_content = ""
+
+            modified_content = current_content
+            for change in changes:
+                old_string = change["old_string"]
+                new_string = change["new_string"]
+                if old_string in modified_content:
+                    modified_content = modified_content.replace(old_string, new_string, 1)
+                else:
+                    print(f"     ⚠️ Warning: Could not find old_string in {filename}")
+
             # Apply the node's changes
-            filepath.write_text(content)
+            filepath.write_text(modified_content)
             print(f"     Applied changes to {filename}")
 
     # Prepare context for the next agents
     context = state.get("context", {}).copy()
     context["selected_node_id"] = current.id
-    # Set current_code to the first modified file's content, or empty if no files
-    context["current_code"] = (
-        list(current.code_snapshot.values())[0] if current.code_snapshot else ""
-    )
+    # Set current_code to show the first modified file's changes, or empty if no files
+    if current.code_changes:
+        first_file = list(current.code_changes.keys())[0]
+        first_changes = current.code_changes[first_file]
+        context["current_code"] = f"Changes to {first_file}: {len(first_changes)} modification(s)"
+    else:
+        context["current_code"] = ""
     context["test_output"] = current.test_output
     context["current_score"] = current.score
     context["hypothesis"] = current.hypothesis
@@ -1106,7 +1151,7 @@ def analyze_with_architect(state: TreeState) -> dict:
     # Make current node's code snapshot available to filesystem tools
     import json
 
-    os.environ["CURRENT_NODE_CODE_SNAPSHOT"] = json.dumps(selected.code_snapshot)
+    os.environ["CURRENT_NODE_CODE_SNAPSHOT"] = json.dumps(selected.code_changes)
 
     # Run architect agent
     result = architect_node(architect_state)
@@ -1271,6 +1316,12 @@ Based on the architect's bug analysis above, generate exactly {num_candidates} d
 Each fix must be COMPLETE and DISTINCT, addressing the specific bugs identified in the analysis.
 You can modify ANY files in the codebase that you believe are relevant to fixing the issue.
 
+For each file modification, you must provide:
+1. **old_string**: A unique block of existing code to replace (include enough context lines above and below to make this block unique within the file)
+2. **new_string**: The new code to replace the old_string with
+
+If your initial old_string is not unique within the file, you MUST add more lines of context above or below until it becomes unique. The old_string must appear exactly once in the file.
+
 Format your response as JSON:
 ```json
 {{
@@ -1280,11 +1331,13 @@ Format your response as JSON:
             "modified_files": [
                 {{
                     "file_path": "path/to/file.py",
-                    "content": "Complete file content here including all your modifications..."
+                    "old_string": "existing code block to replace\\nwith enough context to be unique",
+                    "new_string": "new code to replace the old_string with"
                 }},
                 {{
                     "file_path": "path/to/another/file.py",
-                    "content": "Complete file content here including all your modifications..."
+                    "old_string": "another existing code block\\nwith unique context",
+                    "new_string": "another replacement code block"
                 }}
             ]
         }},
@@ -1293,7 +1346,7 @@ Format your response as JSON:
 }}
 ```
 
-IMPORTANT: Address the bugs identified by the architect and provide the FULL file content for each modified file in each fix. If you do not have the full content of each file, use the task tool to call the internal_librarian subagent to get the full content of the file. Do not make any assumptions about the codebase.
+IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Use the read_file tool to examine files and ensure your old_string blocks are unique.
 """
 
     # Create a mini-state for the coder agent with plan.md context
@@ -1343,6 +1396,7 @@ IMPORTANT: Address the bugs identified by the architect and provide the FULL fil
         except json.JSONDecodeError as e:
             print(f"   ⚠️ Could not parse JSON response ({e}), extracting code blocks...")
             # Fallback: extract any code blocks and assign to a reasonable default file
+            # For fallback, we assume the code block is new_string and create a minimal old_string
             code_blocks = re.findall(r"```python\s*(.*?)\s*```", response, re.DOTALL)
             for i, code in enumerate(code_blocks[:num_candidates]):
                 candidates.append(
@@ -1351,7 +1405,8 @@ IMPORTANT: Address the bugs identified by the architect and provide the FULL fil
                         "modified_files": [
                             {
                                 "file_path": "python/sglang/srt/lora/layers.py",  # Default fallback file
-                                "content": code,
+                                "old_string": "# TODO: Replace this placeholder with the actual code to modify",  # Placeholder old_string
+                                "new_string": code,
                             }
                         ],
                     }
@@ -1366,22 +1421,25 @@ IMPORTANT: Address the bugs identified by the architect and provide the FULL fil
         description = candidate_data.get("description", f"Candidate fix {i + 1}")
         modified_files = candidate_data.get("modified_files", [])
 
-        # Build code snapshot from all modified files
-        code_snapshot = {}
+        # Build code changes from all modified files
+        code_changes = {}
         for modified_file in modified_files:
             file_path = modified_file.get("file_path", "")
-            file_content = modified_file.get("content", "")
+            old_string = modified_file.get("old_string", "")
+            new_string = modified_file.get("new_string", "")
 
-            # Only include files with valid content
-            if file_path and file_content and len(file_content) >= 50:
-                code_snapshot[file_path] = file_content
+            # Only include files with valid changes
+            if file_path and old_string and new_string:
+                if file_path not in code_changes:
+                    code_changes[file_path] = []
+                code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
 
         # Skip candidates with no valid modified files
-        if not code_snapshot:
+        if not code_changes:
             continue
 
         candidate = Node(
-            code_snapshot=code_snapshot,
+            code_changes=code_changes,
             parent_id=selected_id,
             hypothesis=description,
             depth=selected.depth + 1,
@@ -1434,7 +1492,7 @@ def execute_candidates(state: TreeState) -> dict:
 
         # Get original code from root node for comparison
         root_node = Node.from_dict(nodes[state["root_id"]])
-        original_code = root_node.code_snapshot
+        original_code = root_node.code_changes
 
         # Use critic to evaluate and score the candidate
         score, critic_feedback = evaluate_candidate_with_critic(
@@ -1921,7 +1979,7 @@ def run_lats(
 
         # Create root node
     root = Node(
-        code_snapshot={},  # Start with empty snapshot - files only added when modified
+        code_changes={},  # Start with empty changes - files only added when modified
         hypothesis="Initial code state",
     )
 
