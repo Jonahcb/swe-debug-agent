@@ -1347,6 +1347,18 @@ Format your response as JSON:
 }}
 
 IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Do not make any code up or make any assumptions about the code. Do not use any placeholder text. Use the exact real code block from the codebase for old_string. Use the task tool to call the internal_librarian subagent (via the task tool) to get the full content of the file if you need to.
+
+### 🔄 IMMEDIATE FEEDBACK LOOP 🔄
+**VALIDATION REQUIREMENT**: After generating your candidate solutions, you MUST validate them using the `check_fixes` tool. This tool call should be your FINAL ANSWER - do not return the JSON directly.
+
+**Process**:
+1. Generate all your candidate fixes as JSON
+2. **Call `check_fixes` ONCE with ALL candidates together** as your final answer/tool call
+3. The tool will validate all candidates and provide feedback
+4. If validation fails, the system will ask you to revise - then repeat the process
+5. Only return validated solutions that pass the check_fixes tool
+
+**IMPORTANT**: Your final output should be a call to the `check_fixes` tool with your complete JSON, not the JSON itself.
 """
 
     # Create a mini-state for the coder agent with plan.md context

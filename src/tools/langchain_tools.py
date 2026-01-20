@@ -740,6 +740,112 @@ def ruff_format(path: str) -> str:
 
 
 # =============================================================================
+# Fix Validation Tools
+# =============================================================================
+
+
+def check_fixes(candidates_json: str) -> str:
+    """Validate that candidate fixes can be applied to files by checking if old_string exists in each file.
+
+    Args:
+        candidates_json: JSON string containing candidate solutions with file modifications
+
+    Returns:
+        Validation results indicating which fixes can be applied successfully
+    """
+    print(f"🔍 [TOOL] check_fixes: validating {len(candidates_json)} chars of candidate solutions")
+    try:
+        import json
+
+        # Parse the candidates JSON
+        candidates_data = json.loads(candidates_json)
+        candidates = candidates_data.get("candidates", [])
+
+        if not candidates:
+            return "❌ No candidates found in JSON"
+
+        results = []
+        all_valid = True
+
+        for i, candidate in enumerate(candidates):
+            candidate_results = []
+            description = candidate.get("description", f"Candidate {i + 1}")
+
+            modified_files = candidate.get("modified_files", [])
+            if not modified_files:
+                candidate_results.append(f"❌ {description}: No modified files specified")
+                all_valid = False
+                continue
+
+            for file_info in modified_files:
+                file_path = file_info.get("file_path", "")
+                old_string = file_info.get("old_string", "")
+
+                if not file_path or not old_string:
+                    candidate_results.append(
+                        f"❌ {description}: Missing file_path or old_string for {file_path}"
+                    )
+                    all_valid = False
+                    continue
+
+                # Get worktree path and construct full file path
+                worktree_path = os.getenv("WORKTREE_REPO_PATH")
+                if not worktree_path:
+                    candidate_results.append(f"❌ {description}: No worktree path configured")
+                    all_valid = False
+                    continue
+
+                full_path = os.path.join(worktree_path, file_path)
+
+                # Check if file exists
+                if not os.path.exists(full_path):
+                    candidate_results.append(f"❌ {description}: File does not exist: {file_path}")
+                    all_valid = False
+                    continue
+
+                # Read file content
+                try:
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        file_content = f.read()
+                except Exception as e:
+                    candidate_results.append(f"❌ {description}: Cannot read file {file_path}: {e}")
+                    all_valid = False
+                    continue
+
+                # Check if old_string exists in file content
+                if old_string in file_content:
+                    candidate_results.append(
+                        f"✅ {description}: {file_path} - old_string found and can be replaced"
+                    )
+                else:
+                    candidate_results.append(
+                        f"❌ {description}: {file_path} - old_string NOT found in file (cannot apply fix)"
+                    )
+                    all_valid = False
+
+            results.extend(candidate_results)
+
+        # Overall summary
+        if all_valid:
+            results.insert(
+                0,
+                "🎉 ALL FIXES VALID: All candidate solutions can be successfully applied to files",
+            )
+        else:
+            results.insert(
+                0,
+                "⚠️ SOME FIXES INVALID: One or more candidate solutions cannot be applied - please revise",
+            )
+
+        return "\n".join(results)
+
+    except json.JSONDecodeError as e:
+        return f"❌ Invalid JSON format: {e}"
+    except Exception as e:
+        return f"❌ Error validating fixes: {e}"
+
+
+# =============================================================================
 # Tool Collections for Different Agent Roles
 # =============================================================================
 
@@ -750,6 +856,7 @@ ARCHITECT_TOOLS = []
 # Note: Filesystem tools (read_file, write_file, edit_file, list_files, glob, grep)
 # are automatically provided by deepagents FilesystemMiddleware
 CODER_TOOLS = [
+    check_fixes,
     git_status,
     git_diff,
     git_add,
