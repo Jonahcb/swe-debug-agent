@@ -1321,7 +1321,7 @@ Based on the architect's bug analysis above, generate exactly {num_candidates} d
 * **FAILURE MODE**: If you generate an `old_string` that does not match the file exactly (character-for-character), the patch will fail. You cannot know the exact indentation or context without reading the file first using the `task` tool.
 
 ### Execution Steps:
-1.  **CALL TOOLS FIRST**: Immediately use the `task` tool (with `internal_librarian`) to read the relevant lines in `sglang/model/lora.py`, `sglang/kernel/per_expert_lora_moe.py`, and `sglang/model/moe_dispatch.py`.
+1.  **CALL TOOLS FIRST**: Immediately use the `task` tool (with `internal_librarian`) to read the relevant lines in relevant files.
 2.  **GENERATE CANDIDATES**: Once you have the *real* source code in your context window, generate the 3 distinct fixes.
 3.  **FORMAT**: For each file modification, you must provide:
     * **old_string**: The EXACT unique block of existing code you found using the librarian (copy-paste it).
