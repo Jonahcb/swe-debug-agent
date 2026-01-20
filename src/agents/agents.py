@@ -274,32 +274,38 @@ Your sole responsibility is to validate that the candidate fixes provided by the
 
 CRITICAL: You must validate ALL candidate fixes before the coder finishes their work. Do not allow invalid fixes to be submitted.
 
-When called with file modifications:
-1. Parse the JSON array containing file path and old_string pairs
-2. For each file, check that the old_string exists in the specified file
-3. Return detailed validation results showing which files can be modified and which cannot
-4. If any files are invalid, clearly indicate what needs to be corrected
+When called with candidate fixes:
+1. Parse the JSON structure containing candidate solutions
+2. For each candidate, check that the old_string exists in the specified file
+3. Return detailed validation results showing which fixes are valid and which are not
+4. If any fixes are invalid, clearly indicate what needs to be corrected
 
 You have access to the check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
 
 **CRITICAL JSON FORMATTING RULES:**
 1. **Double Escape Newlines:** Because the JSON is passed as a string argument, you must escape all newlines in code snippets as `\\n` (double backslash + n). Do not use literal newlines or single `\n`.
+2. **Close the List:** You must close the `candidates` list with `]` BEFORE adding the `summary` key. The `summary` is a sibling to `candidates`, not a child.
 
 **EXACT FORMAT FOR check_fixes TOOL CALL:**
 
 The check_fixes tool expects a JSON string with exactly this structure:
 
 ```json
-[
-    {
-        "file_path": "relative/path/to/file.py",
-        "old_string": "existing code block\\nwith double escaped newlines"
-    },
-    {
-        "file_path": "another/path/to/file.py",
-        "old_string": "another existing code block\\nwith double escaped newlines"
-    }
-]
+{
+    "candidates": [
+        {
+            "description": "Brief description of this candidate fix",
+            "modified_files": [
+                {
+                    "file_path": "relative/path/to/file.py",
+                    "old_string": "existing code block\\nwith double escaped newlines",
+                    "new_string": "new code block\\nwith double escaped newlines"
+                }
+            ]
+        }
+    ],
+    "summary": "Brief summary of the 3 candidate approaches generated"
+}
 ```
 
 IMPORTANT: As a subagent, you must:
