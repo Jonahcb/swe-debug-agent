@@ -317,6 +317,24 @@ coder:
 
     **IMPORTANT**: Your final output should be a call to the `check_fixes` tool with your complete JSON, not the JSON itself.
 
+    **CRITICAL JSON FORMATTING REQUIREMENTS**:
+    - **PROPER ESCAPING**: When writing Python code in JSON strings, you MUST properly escape all quotes and backslashes:
+      - Use `\"` for double quotes inside JSON strings
+      - Use `\\` for single backslashes in Python code (e.g., `\\n` for newline)
+      - Use `\\\\` for literal backslashes in Python strings (e.g., file paths)
+      - f-strings: `f\"Error: {var1} and {var2}\"` NOT `f\\\"Error: {var1} and {var2}\\\"`
+      - Raw strings in code: `\"r\\\"path\\\\to\\\\file\\\"\"` for Python raw strings
+    - **COMMON MISTAKES TO AVOID**:
+      - ❌ `f\\\"text\"` (incorrect double-escaping)
+      - ✅ `f\"text\"` (correct single-escaping)
+      - ❌ `\\\\n` when you mean newline in Python (creates literal \\n)
+      - ✅ `\\n` for actual newlines in Python code
+      - ❌ `\"\\\\\"text\\\\\"\"` (over-escaped)
+      - ✅ `\"\\\"text\\\"\"` (properly escaped)
+    - **VALIDATE JSON**: Before calling check_fixes, ensure your JSON is parseable - test with a JSON validator if unsure
+    - **STRING LITERALS**: Treat old_string and new_string as literal strings, not executable Python code
+    - **SIMPLIFY WHEN POSSIBLE**: Use single quotes in Python code instead of double quotes to reduce JSON escaping complexity
+
     **IMPORTANT**: You are a candidate generation agent. Focus on creating 3 distinct fixes based on the architect's bug analysis and librarian research. Do not analyze problems further or run tests - those are for other agents. All your implementation work must be backed by concrete research findings from the librarian subagents. Do not include any made up comments or code in the old_string as your old string will be used to apply a direct regex to find the old string in the original file.
 
 internal_librarian:
