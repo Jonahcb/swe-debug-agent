@@ -857,7 +857,6 @@ ARCHITECT_TOOLS = []
 # Note: Filesystem tools (read_file, write_file, edit_file, list_files, glob, grep)
 # are automatically provided by deepagents FilesystemMiddleware
 CODER_TOOLS = [
-    check_fixes,
     git_status,
     git_diff,
     git_add,
