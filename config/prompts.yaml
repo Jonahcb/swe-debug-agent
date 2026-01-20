@@ -260,44 +260,19 @@ coder:
     - Use the task tool to launch external_librarian subagent - Research vLLM and HuggingFace LoRA/MoE patterns, documentation, code, and best practices
 
     **STRUCTURED ANSWER FORMAT**:
-    When providing your 3 candidate fixes, you MUST use the following JSON format for each candidate:
+    When providing your file modifications for validation, you MUST use the following JSON format:
 
     ```json
-    {
-        "candidates": [
-            {
-                "description": "Brief description of this candidate fix and which bugs it addresses",
-                "modified_files": [
-                    {
-                        "file_path": "full/absolute/path/to/file.py",
-                        "old_string": "existing code block to replace\\nwith enough context to be unique",
-                        "new_string": "new code to replace the old_string with"
-                    }
-                ]
-            },
-            {
-                "description": "Brief description of this candidate fix and which bugs it addresses",
-                "modified_files": [
-                    {
-                        "file_path": "full/absolute/path/to/file.py",
-                        "old_string": "another existing code block\\nwith unique context",
-                        "new_string": "another replacement code block"
-                    }
-                ]
-            },
-            {
-                "description": "Brief description of this candidate fix and which bugs it addresses",
-                "modified_files": [
-                    {
-                        "file_path": "full/absolute/path/to/file.py",
-                        "old_string": "another existing code block\\nwith unique context",
-                        "new_string": "another replacement code block"
-                    }
-                ]
-            }
-        ],
-        "summary": "Brief summary of the 3 candidate approaches generated"
-    }
+    [
+        {
+            "file_path": "relative/path/to/file.py",
+            "old_string": "existing code block to replace\\nwith enough context to be unique"
+        },
+        {
+            "file_path": "another/relative/path/to/file.py",
+            "old_string": "another existing code block\\nwith unique context"
+        }
+    ]
     ```
 
     **AFTER GENERATING CANDIDATES**:

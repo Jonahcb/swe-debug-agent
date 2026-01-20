@@ -746,101 +746,86 @@ def ruff_format(path: str) -> str:
 
 @tool
 def check_fixes(candidates_json: str) -> str:
-    """Validate that candidate fixes can be applied to files by checking if old_string exists in each file.
+    """Validate that file modifications can be applied by checking if old_string exists in each file.
 
     Args:
-        candidates_json: JSON string containing candidate solutions with file modifications
+        candidates_json: JSON string containing list of file path and old_string pairs
 
     Returns:
-        Validation results indicating which fixes can be applied successfully
+        Validation results indicating which files can be modified successfully
     """
-    print(f"🔍 [TOOL] check_fixes: validating {len(candidates_json)} chars of candidate solutions")
+    print(f"🔍 [TOOL] check_fixes: validating {len(candidates_json)} chars of file modifications")
     try:
         import json
 
-        # Parse the candidates JSON
-        candidates_data = json.loads(candidates_json)
-        candidates = candidates_data.get("candidates", [])
+        # Parse the file modifications JSON
+        file_modifications = json.loads(candidates_json)
 
-        if not candidates:
-            return "❌ No candidates found in JSON"
+        if not file_modifications:
+            return "❌ No file modifications found in JSON"
 
         results = []
         all_valid = True
 
-        for i, candidate in enumerate(candidates):
-            candidate_results = []
-            description = candidate.get("description", f"Candidate {i + 1}")
+        for i, file_info in enumerate(file_modifications):
+            file_path = file_info.get("file_path", "")
+            old_string = file_info.get("old_string", "")
 
-            modified_files = candidate.get("modified_files", [])
-            if not modified_files:
-                candidate_results.append(f"❌ {description}: No modified files specified")
+            if not file_path or not old_string:
+                results.append(f"❌ File {i + 1}: Missing file_path or old_string")
                 all_valid = False
                 continue
 
-            for file_info in modified_files:
-                file_path = file_info.get("file_path", "")
-                old_string = file_info.get("old_string", "")
+            # Get worktree path and construct full file path
+            worktree_path = os.getenv("WORKTREE_REPO_PATH")
+            if not worktree_path:
+                results.append(f"❌ File {i + 1}: No worktree path configured")
+                all_valid = False
+                continue
 
-                if not file_path or not old_string:
-                    candidate_results.append(
-                        f"❌ {description}: Missing file_path or old_string for {file_path}"
-                    )
-                    all_valid = False
-                    continue
+            full_path = os.path.join(worktree_path, file_path)
 
-                # Get worktree path and construct full file path
-                worktree_path = os.getenv("WORKTREE_REPO_PATH")
-                if not worktree_path:
-                    candidate_results.append(f"❌ {description}: No worktree path configured")
-                    all_valid = False
-                    continue
+            # Print base path and suffix path for debugging
+            print(f"🔍 [TOOL] check_fixes: Base path: {worktree_path}")
+            print(f"🔍 [TOOL] check_fixes: Suffix path: {file_path}")
+            print(f"🔍 [TOOL] check_fixes: Full path: {full_path}")
 
-                full_path = os.path.join(worktree_path, file_path)
+            # Check if file exists
+            if not os.path.exists(full_path):
+                results.append(f"❌ File {i + 1}: File does not exist: {file_path}")
+                all_valid = False
+                continue
 
-                # Print base path and suffix path for debugging
-                print(f"🔍 [TOOL] check_fixes: Base path: {worktree_path}")
-                print(f"🔍 [TOOL] check_fixes: Suffix path: {file_path}")
-                print(f"🔍 [TOOL] check_fixes: Full path: {full_path}")
+            # Read file content
+            try:
+                with open(full_path, encoding="utf-8") as f:
+                    file_content = f.read()
+            except Exception as e:
+                results.append(f"❌ File {i + 1}: Cannot read file {file_path}: {e}")
+                all_valid = False
+                continue
 
-                # Check if file exists
-                if not os.path.exists(full_path):
-                    candidate_results.append(f"❌ {description}: File does not exist: {file_path}")
-                    all_valid = False
-                    continue
-
-                # Read file content
-                try:
-                    with open(full_path, "r", encoding="utf-8") as f:
-                        file_content = f.read()
-                except Exception as e:
-                    candidate_results.append(f"❌ {description}: Cannot read file {file_path}: {e}")
-                    all_valid = False
-                    continue
-
-                # Check if old_string exists in file content
-                if old_string in file_content:
-                    candidate_results.append(
-                        f"✅ {description}: {file_path} - old_string found and can be replaced"
-                    )
-                else:
-                    candidate_results.append(
-                        f"❌ {description}: {file_path} - old_string NOT found in file (cannot apply fix)"
-                    )
-                    all_valid = False
-
-            results.extend(candidate_results)
+            # Check if old_string exists in file content
+            if old_string in file_content:
+                results.append(
+                    f"✅ File {i + 1}: {file_path} - old_string found and can be replaced"
+                )
+            else:
+                results.append(
+                    f"❌ File {i + 1}: {file_path} - old_string NOT found in file (cannot apply fix)"
+                )
+                all_valid = False
 
         # Overall summary
         if all_valid:
             results.insert(
                 0,
-                "🎉 ALL FIXES VALID: All candidate solutions can be successfully applied to files",
+                "🎉 ALL FILES VALID: All file modifications can be successfully applied",
             )
         else:
             results.insert(
                 0,
-                "⚠️ SOME FIXES INVALID: One or more candidate solutions cannot be applied - please revise",
+                "⚠️ SOME FILES INVALID: One or more file modifications cannot be applied - please revise",
             )
 
         return "\n".join(results)
