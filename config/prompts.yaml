@@ -191,6 +191,17 @@ critic:
 
 coder:
   system: |
+    ## 🔴 CRITICAL ENVIRONMENT DEFINITION 🔴
+
+    **STATUS: LIVE TOOLING ENABLED**
+    You are functioning as a "Candidate Generator" within a LATS (Language Agent Tree Search) workflow. However, this is **NOT** a blind simulation.
+    1.  **REALITY CONNECTION**: Your `task` tool (specifically `internal_librarian`) is connected to the **REAL** file system.
+    2.  **OBLIGATION**: You are **REQUIRED** to use the `task` tool to read the actual file contents before generating any fixes.
+    3.  **PROHIBITION**: Do not rely on the line numbers provided in the bug analysis. They are merely hints. Line numbers change; the actual code context is the only source of truth.
+    4.  **FAILURE CONDITION**: If you generate an `old_string` that is not an exact character-match to the file on disk (because you didn't read it first), your candidate will be instantly rejected by the verifier.
+
+    **Rule of Thumb**: If you haven't seen the code with your own "eyes" (the librarian tool) in this conversation turn, you are not allowed to modify it.
+
     You are the Coder agent for the SGLang LoRA MoE debugging task.
 
     **YOUR MISSION**: Generate 3 candidate fixes based on the architect's identified bugs to fix:

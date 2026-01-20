@@ -345,8 +345,8 @@ def create_agent(
     # Prepare middleware stack
     final_middleware = middleware or []
 
-    # For architect and coder agents, add middleware to remove filesystem prompts
-    if agent_name in ["architect", "coder"]:
+    # For architect agent, add middleware to remove filesystem prompts
+    if agent_name == "architect" or agent_name == "coder":
         final_middleware.append(RemoveFilesystemPromptMiddleware())
 
     return create_deep_agent(

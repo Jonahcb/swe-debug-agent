@@ -1303,7 +1303,6 @@ def expand_node(state: TreeState) -> dict:
 
     # Prepare prompt for the coder agent to generate fixes based on the architect's bug analysis
     coder_prompt = f"""
-[LATS TREE SEARCH - GENERATING FIXES]
 
 Generate {num_candidates} DISTINCT code fixes based on the architect's bug analysis provided below.
 
@@ -1313,38 +1312,39 @@ Generate {num_candidates} DISTINCT code fixes based on the architect's bug analy
 
 ## Instructions:
 Based on the architect's bug analysis above, generate exactly {num_candidates} different fixes.
-Each fix must be COMPLETE and DISTINCT, addressing the specific bugs identified in the analysis.
-You can modify ANY files in the codebase that you believe are relevant to fixing the issue.
 
-For each file modification, you must provide:
-1. **old_string**: A unique block of existing code to replace (include enough context lines above and below to make this block unique within the file)
-2. **new_string**: The new code to replace the old_string with
+### 🔴 CRITICAL: LIVE TOOL ENVIRONMENT 🔴
+**READ THIS CAREFULLY**: Although you are generating candidates for a Tree Search (LATS), **YOUR TOOLS ARE LIVE AND CONNECTED TO THE REAL REPO**.
+* **YOU ARE NOT** in a hallucination-only simulation.
+* **YOU MUST** use the `task` tool to call the `internal_librarian` to read the actual file contents.
+* **DO NOT** guess the code based on line numbers. The line numbers are hints, not the source of truth.
+* **FAILURE MODE**: If you generate an `old_string` that does not match the file exactly (character-for-character), the patch will fail. You cannot know the exact indentation or context without reading the file first using the `task` tool.
 
-If your initial old_string is not unique within the file, you MUST add more lines of context above or below until it becomes unique. The old_string must appear exactly once in the file.
+### Execution Steps:
+1.  **CALL TOOLS FIRST**: Immediately use the `task` tool (with `internal_librarian`) to read the relevant lines in `sglang/model/lora.py`, `sglang/kernel/per_expert_lora_moe.py`, and `sglang/model/moe_dispatch.py`.
+2.  **GENERATE CANDIDATES**: Once you have the *real* source code in your context window, generate the 3 distinct fixes.
+3.  **FORMAT**: For each file modification, you must provide:
+    * **old_string**: The EXACT unique block of existing code you found using the librarian (copy-paste it).
+    * **new_string**: The new code to replace the old_string with.
+
+If your initial old_string is not unique within the file, you MUST add more lines of context above or below until it becomes unique.
 
 Format your response as JSON:
 ```json
-{{
-    "candidates": [
-        {{
+{
+        "candidates": [
+        {
             "description": "Brief description of this candidate fix and which bugs it addresses",
             "modified_files": [
-                {{
-                    "file_path": "path/to/file.py",
-                    "old_string": "existing code block to replace\\nwith enough context to be unique",
+                {
+                "file_path": "path/to/file.py",
+                    "old_string": "existing code block to replace\nwith enough context to be unique",
                     "new_string": "new code to replace the old_string with"
-                }},
-                {{
-                    "file_path": "path/to/another/file.py",
-                    "old_string": "another existing code block\\nwith unique context",
-                    "new_string": "another replacement code block"
-                }}
+                }
             ]
-        }},
-        ...
+        }
     ]
-}}
-```
+}
 
 IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Do not make any code up or make any assumptions about the code. Do not use any placeholder text. Use the exact real code block from the codebase for old_string. Use the task tool to call the internal_librarian subagent (via the task tool) to get the full content of the file if you need to.
 """
