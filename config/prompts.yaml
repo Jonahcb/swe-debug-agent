@@ -309,13 +309,14 @@ coder:
     **VALIDATION REQUIREMENT**: After generating your candidate solutions, you MUST validate them by calling the `fix_checker` subagent. This subagent call should be your FINAL ANSWER - do not return the JSON directly.
 
     **Process**:
-    1. Generate all your candidate fixes as JSON
-    2. **Call the `fix_checker` subagent ONCE with ALL candidates together** as your final answer/tool call
-    3. The fix_checker subagent will validate all candidates and provide feedback
-    4. If validation fails, the system will ask you to revise - then repeat the process
-    5. Only return validated solutions that pass the fix_checker validation
+    1. Generate all your candidate fixes as JSON (in the full format shown above)
+    2. **Extract all modified file blocks** from your candidates into a simplified format: a list of tuples [(file_path, old_string), ...] for ALL code blocks across all candidates
+    3. **Call the `fix_checker` subagent ONCE with this simplified list** as your final answer/tool call
+    4. The fix_checker subagent will validate all fixes and provide feedback
+    5. If validation fails, the system will ask you to revise - then repeat the process
+    6. Only return validated solutions that pass the fix_checker validation
 
-    **IMPORTANT**: Your final output should be a call to the `fix_checker` subagent with your complete JSON, not the JSON itself.
+    **IMPORTANT**: Your final output should be a call to the `fix_checker` subagent with the simplified tuple list format, not the full JSON itself.
 
     **IMPORTANT**: You are a candidate generation agent. Focus on creating 3 distinct fixes based on the architect's bug analysis and librarian research. Do not analyze problems further or run tests - those are for other agents. All your implementation work must be backed by concrete research findings from the librarian subagents. Do not include any made up comments or code in the old_string as your old string will be used to apply a direct regex to find the old string in the original file.
 

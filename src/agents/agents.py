@@ -14,7 +14,7 @@ from src.tools.langchain_tools import (
     CRITIC_TOOLS,
     EXTERNAL_LIBRARIAN_TOOLS,
     INTERNAL_LIBRARIAN_TOOLS,
-    check_fixes,
+    simple_check_fixes,
 )
 
 # Load prompts from YAML file
@@ -275,44 +275,27 @@ Your sole responsibility is to validate that the candidate fixes provided by the
 CRITICAL: You must validate ALL candidate fixes before the coder finishes their work. Do not allow invalid fixes to be submitted.
 
 When called with candidate fixes:
-1. Parse the JSON structure containing candidate solutions
-2. For each candidate, check that the old_string exists in the specified file
+1. Parse the simplified format: a list of tuple pairs [(file_path, old_string), ...]
+2. For each tuple pair, check that the old_string exists in the specified file
 3. Return detailed validation results showing which fixes are valid and which are not
 4. If any fixes are invalid, clearly indicate what needs to be corrected
 
-You have access to the check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
+You have access to the simple_check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
 
-**CRITICAL JSON FORMATTING RULES:**
-1. **Double Escape Newlines:** Because the JSON is passed as a string argument, you must escape all newlines in code snippets as `\\n` (double backslash + n). Do not use literal newlines or single `\n`.
-2. **Close the List:** You must close the `candidates` list with `]` BEFORE adding the `summary` key. The `summary` is a sibling to `candidates`, not a child.
+**EXPECTED INPUT FORMAT:**
+You receive a simplified list of tuples: [(file_path, old_string), (file_path, old_string), ...]
 
-**EXACT FORMAT FOR check_fixes TOOL CALL:**
+**TOOL CALL FORMAT:**
+Call the simple_check_fixes tool with this format:
+simple_check_fixes(fixes_list)
 
-The check_fixes tool expects a JSON string with exactly this structure:
-
-```json
-{
-    "candidates": [
-        {
-            "description": "Brief description of this candidate fix",
-            "modified_files": [
-                {
-                    "file_path": "relative/path/to/file.py",
-                    "old_string": "existing code block\\nwith double escaped newlines",
-                    "new_string": "new code block\\nwith double escaped newlines"
-                }
-            ]
-        }
-    ],
-    "summary": "Brief summary of the 3 candidate approaches generated"
-}
-```
+Where fixes_list is the list of (file_path, old_string) tuples you received.
 
 IMPORTANT: As a subagent, you must:
 - Focus exclusively on fix validation - do not implement fixes or make code changes
 - Report validation results back to your parent Coder agent clearly and comprehensively
 - Do not attempt to coordinate other agents or make design decisions""",
-            "tools": [check_fixes],  # Only has access to check_fixes tool
+            "tools": [simple_check_fixes],  # Only has access to simple_check_fixes tool
         },
         {
             "name": "internal_librarian",
