@@ -1331,20 +1331,20 @@ If your initial old_string is not unique within the file, you MUST add more line
 
 Format your response as JSON:
 ```json
-{
+{{
         "candidates": [
-        {
+        {{
             "description": "Brief description of this candidate fix and which bugs it addresses",
             "modified_files": [
-                {
+                {{
                 "file_path": "path/to/file.py",
                     "old_string": "existing code block to replace\nwith enough context to be unique",
                     "new_string": "new code to replace the old_string with"
-                }
+                }}
             ]
-        }
+        }}
     ]
-}
+}}
 
 IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Do not make any code up or make any assumptions about the code. Do not use any placeholder text. Use the exact real code block from the codebase for old_string. Use the task tool to call the internal_librarian subagent (via the task tool) to get the full content of the file if you need to.
 """
