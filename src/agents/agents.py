@@ -282,6 +282,28 @@ When called with candidate fixes:
 
 You have access to the check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
 
+**EXACT FORMAT FOR check_fixes TOOL CALL:**
+
+The check_fixes tool expects a JSON string with exactly this structure:
+
+```json
+{
+    "candidates": [
+        {
+            "description": "Brief description of this candidate fix and which bugs it addresses",
+            "modified_files": [
+                {
+                    "file_path": "full/absolute/path/to/file.py",
+                    "old_string": "existing code block to replace\\nwith enough context to be unique",
+                    "new_string": "new code to replace the old_string with"
+                }
+            ]
+        }
+    ],
+    "summary": "Brief summary of the 3 candidate approaches generated"
+}
+```
+
 IMPORTANT: As a subagent, you must:
 - Focus exclusively on fix validation - do not implement fixes or make code changes
 - Report validation results back to your parent Coder agent clearly and comprehensively
