@@ -744,6 +744,64 @@ def ruff_format(path: str) -> str:
 # =============================================================================
 
 
+def _normalize_whitespace(text: str) -> str:
+    """Normalize whitespace in text for comparison purposes.
+
+    - Strips leading/trailing whitespace from each line
+    - Removes empty lines
+    - Normalizes indentation by removing common leading whitespace
+    - Joins lines back together
+
+    Args:
+        text: The text to normalize
+
+    Returns:
+        Normalized text with consistent whitespace handling
+    """
+    if not text:
+        return ""
+
+    # Split into lines and strip leading/trailing whitespace
+    lines = [line.strip() for line in text.split("\n")]
+
+    # Remove empty lines
+    lines = [line for line in lines if line]
+
+    if not lines:
+        return ""
+
+    # Find minimum indentation (ignoring empty lines)
+    min_indent = min(len(line) - len(line.lstrip()) for line in lines if line.strip())
+
+    # Remove common indentation
+    if min_indent > 0:
+        lines = [line[min_indent:] if len(line) > min_indent else line.lstrip() for line in lines]
+
+    # Join back together
+    return "\n".join(lines)
+
+
+def _contains_normalized(needle: str, haystack: str) -> bool:
+    """Check if needle exists in haystack with whitespace normalization.
+
+    Args:
+        needle: The string to search for
+        haystack: The string to search in
+
+    Returns:
+        True if needle is found (with normalization), False otherwise
+    """
+    # First try exact match (fast path)
+    if needle in haystack:
+        return True
+
+    # Normalize both strings and try again
+    normalized_needle = _normalize_whitespace(needle)
+    normalized_haystack = _normalize_whitespace(haystack)
+
+    return normalized_needle in normalized_haystack
+
+
 @tool
 def simple_check_fixes(fixes_list: list) -> str:
     """Validate that fixes can be applied to files by checking if old_string exists in each file.
@@ -797,8 +855,8 @@ def simple_check_fixes(fixes_list: list) -> str:
             all_valid = False
             continue
 
-        # Check if old_string exists in file content
-        if old_string in file_content:
+        # Check if old_string exists in file content (with whitespace normalization)
+        if _contains_normalized(old_string, file_content):
             results.append(f"✅ Fix {i + 1}: {file_path} - old_string found and can be replaced")
         else:
             results.append(
