@@ -245,7 +245,7 @@ def coder_node(state: AgentState) -> dict:
     """Run coder agent to implement code changes based on architect's plan.
 
     This agent uses SGLang constrained decoding for:
-    1. The coder's final output (CoderOutput schema)
+    1. The coder's final output (CoderOutput schema - candidate fixes)
     2. The fix_checker subagent's call to simple_check_fixes tool
     3. The fix_checker subagent's output (FixCheckerOutput schema)
     """
@@ -349,13 +349,13 @@ IMPORTANT: As a subagent, you must:
     ]
 
     # Create agent with SGLang constrained decoding for final output
-    # The CoderOutput schema enforces structured candidate fixes
+    # The coder's final output is candidate fixes (CoderOutput schema)
     agent = create_agent(
         "coder",
         system_prompt,
         subagents=coder_subagents,
         tools=CODER_TOOLS,
-        output_schema=CoderOutput,  # SGLang constrained decoding for coder's final output
+        output_schema=CoderOutput,  # SGLang constrained decoding for coder's final output (candidate fixes)
         subagent_output_schemas={
             "fix_checker": FixCheckerOutput,  # Constrained decoding for fix_checker's output
         },
