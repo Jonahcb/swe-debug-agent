@@ -833,11 +833,14 @@ def simple_check_fixes(fixes_list: list) -> str:
             all_valid = False
             continue
 
-        full_path = os.path.join(worktree_path, file_path)
+        # Normalize file_path to be relative (remove leading / if present)
+        normalized_file_path = file_path.lstrip("/") if file_path.startswith("/") else file_path
+        full_path = os.path.join(worktree_path, normalized_file_path)
 
         # Print base path and suffix path for debugging
         print(f"🔍 [TOOL] simple_check_fixes: Base path: {worktree_path}")
         print(f"🔍 [TOOL] simple_check_fixes: Suffix path: {file_path}")
+        print(f"🔍 [TOOL] simple_check_fixes: Normalized suffix path: {normalized_file_path}")
         print(f"🔍 [TOOL] simple_check_fixes: Full path: {full_path}")
 
         # Check if file exists
