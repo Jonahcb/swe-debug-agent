@@ -17,8 +17,6 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable, RunnableBinding
 from langchain_openai import ChatOpenAI
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, ModelResponse
-from langchain.agents.structured_output import ProviderStrategy
-from pydantic import BaseModel
 
 from config.settings import settings
 from src.memory import store
@@ -297,8 +295,6 @@ def create_agent(
     subagents: list | None = None,
     tools: list | None = None,
     middleware: list | None = None,
-    output_schema: type[BaseModel] | None = None,
-    subagent_output_schemas: dict[str, type[BaseModel]] | None = None,
 ):
     """Create a DeepAgent with built-in standard tools and memory capabilities.
 
@@ -309,7 +305,6 @@ def create_agent(
     - Subagent spawning via task tool
     - Search tool limiting (1 search call per program run)
     - Standard tools provided via middleware
-    - SGLang constrained decoding via output schemas (LangChain structured output)
 
     Args:
         agent_name: Name of the agent (used for LLM configuration)
@@ -317,8 +312,6 @@ def create_agent(
         subagents: Optional list of subagents
         tools: Optional list of additional tools
         middleware: Optional list of additional middleware to apply after defaults
-        output_schema: Optional Pydantic model for constrained decoding of final output
-        subagent_output_schemas: Optional dict mapping subagent names to their output schemas
     """
     # Wrap main agent tools if provided
     wrapped_tools = []
@@ -359,46 +352,15 @@ def create_agent(
     # Get the base LLM
     llm = get_llm(agent_name)
 
-    # Prepare response_format for structured output (following LangChain guidelines)
-    response_format = None
-    if output_schema is not None:
-        print(
-            f"🔒 Enabling SGLang ProviderStrategy constrained decoding for {agent_name} with schema: {output_schema.__name__}"
-        )
-        # SGLang supports native JSON schema constraints, so explicitly use ProviderStrategy
-        # This ensures high reliability and strict validation via provider-native structured output
-        response_format = ProviderStrategy(schema=output_schema, strict=True)
-
-    # Apply output schemas to subagents if specified
-    if subagent_output_schemas and wrapped_subagents:
-        for subagent in wrapped_subagents:
-            subagent_name = subagent.get("name")
-            if subagent_name and subagent_name in subagent_output_schemas:
-                schema = subagent_output_schemas[subagent_name]
-                print(
-                    f"🔒 Enabling SGLang ProviderStrategy constrained decoding for subagent {subagent_name} with schema: {schema.__name__}"
-                )
-                # SGLang supports native JSON schema constraints, so explicitly use ProviderStrategy
-                subagent["response_format"] = ProviderStrategy(schema=schema, strict=True)
-                # Keep output_schema for backward compatibility
-                subagent["output_schema"] = schema
-
-    # Prepare kwargs for create_deep_agent
-    agent_kwargs = {
-        "model": llm,
-        "system_prompt": system_prompt,
-        "tools": wrapped_tools,
-        "subagents": wrapped_subagents,
-        "middleware": final_middleware,
-        "store": store,  # Enable long-term memory across threads
-        "backend": backend,  # Use real filesystem instead of virtual state backend
-    }
-
-    # Add response_format if structured output is requested (following LangChain guidelines)
-    if response_format is not None:
-        agent_kwargs["response_format"] = response_format
-
-    return create_deep_agent(**agent_kwargs)
+    return create_deep_agent(
+        model=llm,
+        system_prompt=system_prompt,
+        tools=wrapped_tools,
+        subagents=wrapped_subagents,
+        middleware=final_middleware,
+        store=store,  # Enable long-term memory across threads
+        backend=backend,  # Use real filesystem instead of virtual state backend
+    )
 
 
 # Task delegation in LangGraph works via HumanMessage - no need for dynamic system prompts
