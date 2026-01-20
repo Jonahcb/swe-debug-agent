@@ -282,6 +282,10 @@ When called with candidate fixes:
 
 You have access to the check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
 
+**CRITICAL JSON FORMATTING RULES:**
+1. **Double Escape Newlines:** Because the JSON is passed as a string argument, you must escape all newlines in code snippets as `\\n` (double backslash + n). Do not use literal newlines or single `\n`.
+2. **Close the List:** You must close the `candidates` list with `]` BEFORE adding the `summary` key. The `summary` is a sibling to `candidates`, not a child.
+
 **EXACT FORMAT FOR check_fixes TOOL CALL:**
 
 The check_fixes tool expects a JSON string with exactly this structure:
@@ -290,12 +294,12 @@ The check_fixes tool expects a JSON string with exactly this structure:
 {
     "candidates": [
         {
-            "description": "Brief description of this candidate fix and which bugs it addresses",
+            "description": "Brief description of this candidate fix",
             "modified_files": [
                 {
-                    "file_path": "full/absolute/path/to/file.py",
-                    "old_string": "existing code block to replace\\nwith enough context to be unique",
-                    "new_string": "new code to replace the old_string with"
+                    "file_path": "relative/path/to/file.py",
+                    "old_string": "existing code block\\nwith double escaped newlines",
+                    "new_string": "new code block\\nwith double escaped newlines"
                 }
             ]
         }
