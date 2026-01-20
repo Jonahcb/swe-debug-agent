@@ -14,6 +14,7 @@ from src.tools.langchain_tools import (
     CRITIC_TOOLS,
     EXTERNAL_LIBRARIAN_TOOLS,
     INTERNAL_LIBRARIAN_TOOLS,
+    check_fixes,
 )
 
 # Load prompts from YAML file
@@ -285,7 +286,7 @@ IMPORTANT: As a subagent, you must:
 - Focus exclusively on fix validation - do not implement fixes or make code changes
 - Report validation results back to your parent Coder agent clearly and comprehensively
 - Do not attempt to coordinate other agents or make design decisions""",
-            "tools": ["check_fixes"],  # Only has access to check_fixes tool
+            "tools": [check_fixes],  # Only has access to check_fixes tool
         },
         {
             "name": "internal_librarian",
