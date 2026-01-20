@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 
 from src.tools.github import GitHubClient
 from src.tools.ruff import format_file, lint_file
+from src.schemas import FixCheckerInput, FixTuple, FixValidationResult
 
 from config.settings import settings
 
@@ -880,6 +881,158 @@ def simple_check_fixes(fixes_list: list) -> str:
         )
 
     return "\n".join(results)
+
+
+@tool(args_schema=FixCheckerInput)
+def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
+    """Validate that fixes can be applied to files using structured input/output.
+
+    This tool uses SGLang constrained decoding for the tool call arguments.
+    The args_schema=FixCheckerInput ensures the LLM generates valid structured input
+    that matches the FixCheckerInput JSON schema.
+
+    Args:
+        fixes_to_validate: List of FixTuple objects to validate.
+                          Each FixTuple has file_path and old_string fields.
+                          SGLang constrains the LLM to generate valid JSON matching this schema.
+
+    Returns:
+        Dict with validation results matching FixCheckerOutput schema:
+        {
+            "all_valid": bool,
+            "results": [{"fix_index": int, "file_path": str, "is_valid": bool, "message": str}, ...],
+            "summary": str
+        }
+    """
+    # Extract (file_path, old_string) tuples from validated FixTuple objects
+    # The args_schema ensures we receive properly structured input from the LLM
+    try:
+        # Handle both FixTuple objects and dicts (for flexibility)
+        fixes_list = []
+        for f in fixes_to_validate:
+            if isinstance(f, FixTuple):
+                fixes_list.append((f.file_path, f.old_string))
+            elif isinstance(f, dict):
+                fixes_list.append((f["file_path"], f["old_string"]))
+            else:
+                fixes_list.append((f.file_path, f.old_string))
+    except (KeyError, TypeError, AttributeError) as e:
+        return {
+            "all_valid": False,
+            "results": [],
+            "summary": f"Failed to parse input: {e}",
+        }
+
+    print(f"🔍 [TOOL] simple_check_fixes_structured: validating {len(fixes_list)} fix tuples")
+
+    if not fixes_list:
+        return {
+            "all_valid": False,
+            "results": [],
+            "summary": "No fixes found in input",
+        }
+
+    results = []
+    all_valid = True
+
+    for i, (file_path, old_string) in enumerate(fixes_list):
+        if not file_path or not old_string:
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path or "",
+                    is_valid=False,
+                    message="Missing file_path or old_string",
+                )
+            )
+            all_valid = False
+            continue
+
+        # Get worktree path and construct full file path
+        worktree_path = os.getenv("WORKTREE_REPO_PATH")
+        if not worktree_path:
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path,
+                    is_valid=False,
+                    message="No worktree path configured",
+                )
+            )
+            all_valid = False
+            continue
+
+        # Normalize file_path to be relative (remove leading / if present)
+        normalized_file_path = file_path.lstrip("/") if file_path.startswith("/") else file_path
+        full_path = os.path.join(worktree_path, normalized_file_path)
+
+        # Print debug info
+        print(f"🔍 [TOOL] simple_check_fixes_structured: Checking {file_path}")
+
+        # Check if file exists
+        if not os.path.exists(full_path):
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path,
+                    is_valid=False,
+                    message=f"File does not exist: {file_path}",
+                )
+            )
+            all_valid = False
+            continue
+
+        # Read file content
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                file_content = f.read()
+        except Exception as e:
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path,
+                    is_valid=False,
+                    message=f"Cannot read file: {e}",
+                )
+            )
+            all_valid = False
+            continue
+
+        # Check if old_string exists in file content (with whitespace normalization)
+        if _contains_normalized(old_string, file_content):
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path,
+                    is_valid=True,
+                    message="old_string found and can be replaced",
+                )
+            )
+        else:
+            results.append(
+                FixValidationResult(
+                    fix_index=i,
+                    file_path=file_path,
+                    is_valid=False,
+                    message="old_string NOT found in file (cannot apply fix)",
+                )
+            )
+            all_valid = False
+
+    # Build summary
+    valid_count = sum(1 for r in results if r.is_valid)
+    total_count = len(results)
+
+    if all_valid:
+        summary = f"ALL FIXES VALID: {valid_count}/{total_count} fixes can be successfully applied"
+    else:
+        summary = f"SOME FIXES INVALID: {valid_count}/{total_count} fixes valid - please revise invalid fixes"
+
+    return {
+        "all_valid": all_valid,
+        "results": [r.model_dump() for r in results],
+        "summary": summary,
+    }
 
 
 # =============================================================================

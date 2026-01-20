@@ -259,8 +259,9 @@ coder:
     - Use the task tool to launch internal_librarian subagent - Analyze CURRENT SGLang codebase for MoE/LoRA code, understand data flow, analyze implementation details
     - Use the task tool to launch external_librarian subagent - Research vLLM and HuggingFace LoRA/MoE patterns, documentation, code, and best practices
 
-    **STRUCTURED ANSWER FORMAT**:
-    When providing your 3 candidate fixes, you MUST use the following JSON format for each candidate:
+    **STRUCTURED ANSWER FORMAT** (SGLang Constrained Decoding Enabled):
+    When providing your 3 candidate fixes, you MUST use the following JSON format for each candidate.
+    This format is enforced by SGLang's constrained decoding - your output MUST be valid JSON matching this schema:
 
     ```json
     {
@@ -310,13 +311,24 @@ coder:
 
     **Process**:
     1. Generate all your candidate fixes as JSON (in the full format shown above)
-    2. **Extract all modified file blocks** from your candidates into a simplified format: a list of tuples [(file_path, old_string), ...] for ALL code blocks across all candidates
-    3. **Call the `fix_checker` subagent ONCE with this simplified list** as your final answer/tool call
+    2. **Extract all modified file blocks** from your candidates into the STRUCTURED FORMAT below
+    3. **Call the `fix_checker` subagent ONCE with this structured input** as your final answer/tool call
     4. The fix_checker subagent will validate all fixes and provide feedback
     5. If validation fails, the system will ask you to revise - then repeat the process
     6. Only return validated solutions that pass the fix_checker validation
 
-    **IMPORTANT**: Your final output should be a call to the `fix_checker` subagent with the simplified tuple list format, not the full JSON itself.
+    **STRUCTURED FIX_CHECKER INPUT FORMAT** (uses SGLang constrained decoding):
+    ```json
+    {
+        "fixes_to_validate": [
+            {"file_path": "full/path/to/file1.py", "old_string": "code to find in file1"},
+            {"file_path": "full/path/to/file2.py", "old_string": "code to find in file2"},
+            ...
+        ]
+    }
+    ```
+
+    **IMPORTANT**: Your final output should be a call to the `fix_checker` subagent with the structured JSON format above, not a raw tuple list.
 
     **IMPORTANT**: You are a candidate generation agent. Focus on creating 3 distinct fixes based on the architect's bug analysis and librarian research. Do not analyze problems further or run tests - those are for other agents. All your implementation work must be backed by concrete research findings from the librarian subagents. Do not include any made up comments or code in the old_string as your old string will be used to apply a direct regex to find the old string in the original file.
 

@@ -7,6 +7,7 @@ import yaml
 from langsmith import traceable
 
 from src.agents.base import create_agent
+from src.schemas import CoderOutput, FixCheckerOutput
 from src.state import AgentState
 from src.tools.langchain_tools import (
     ARCHITECT_TOOLS,
@@ -14,7 +15,7 @@ from src.tools.langchain_tools import (
     CRITIC_TOOLS,
     EXTERNAL_LIBRARIAN_TOOLS,
     INTERNAL_LIBRARIAN_TOOLS,
-    simple_check_fixes,
+    simple_check_fixes_structured,
 )
 
 # Load prompts from YAML file
@@ -241,7 +242,13 @@ IMPORTANT: As a subagent, you must:
 
 @traceable(run_type="llm", name="Coder_Agent")
 def coder_node(state: AgentState) -> dict:
-    """Run coder agent to implement code changes based on architect's plan."""
+    """Run coder agent to implement code changes based on architect's plan.
+
+    This agent uses SGLang constrained decoding for:
+    1. The coder's final output (CoderOutput schema)
+    2. The fix_checker subagent's call to simple_check_fixes tool
+    3. The fix_checker subagent's output (FixCheckerOutput schema)
+    """
     print("\n💻 @Coder\n")  # Display handoff message
     system_prompt = PROMPTS["coder"]["system"]
 
@@ -267,35 +274,47 @@ IMPORTANT: As a subagent, you must:
         },
         {
             "name": "fix_checker",
-            "description": "Specialized subagent for validating that candidate fixes can be properly applied to files",
+            "description": "Specialized subagent for validating that candidate fixes can be properly applied to files. Uses SGLang constrained decoding for structured output.",
             "system_prompt": """You are a subagent of the Coder agent, specialized in validating fix candidates before they are submitted.
 
 Your sole responsibility is to validate that the candidate fixes provided by the coder can be successfully applied to the codebase. You do this by checking if the old_string exists in each target file.
 
 CRITICAL: You must validate ALL candidate fixes before the coder finishes their work. Do not allow invalid fixes to be submitted.
 
+**CONSTRAINED OUTPUT FORMAT:**
+Your output MUST be valid JSON matching the FixCheckerOutput schema:
+{
+    "all_valid": boolean,
+    "results": [
+        {
+            "fix_index": int,
+            "file_path": string,
+            "is_valid": boolean,
+            "message": string
+        },
+        ...
+    ],
+    "summary": string
+}
+
 When called with candidate fixes:
-1. Parse the simplified format: a list of tuple pairs [(file_path, old_string), ...]
-2. For each tuple pair, check that the old_string exists in the specified file
-3. Return detailed validation results showing which fixes are valid and which are not
-4. If any fixes are invalid, clearly indicate what needs to be corrected
+1. Parse the structured input: {"fixes_to_validate": [{"file_path": "...", "old_string": "..."}, ...]}
+2. For each fix, check that the old_string exists in the specified file using simple_check_fixes_structured
+3. Return structured validation results in the FixCheckerOutput format
 
-You have access to the simple_check_fixes tool to perform this validation. Use it as your primary (and usually only) action.
-
-**EXPECTED INPUT FORMAT:**
-You receive a simplified list of tuples: [(file_path, old_string), (file_path, old_string), ...]
+You have access to the simple_check_fixes_structured tool to perform this validation. Use it as your primary action.
 
 **TOOL CALL FORMAT:**
-Call the simple_check_fixes tool with this format:
-simple_check_fixes(fixes_list)
-
-Where fixes_list is the list of (file_path, old_string) tuples you received.
+Call the simple_check_fixes_structured tool with this format:
+simple_check_fixes_structured(fixes_input={"fixes_to_validate": [{"file_path": "...", "old_string": "..."}, ...]})
 
 IMPORTANT: As a subagent, you must:
 - Focus exclusively on fix validation - do not implement fixes or make code changes
+- Return validation results in the structured FixCheckerOutput JSON format
 - Report validation results back to your parent Coder agent clearly and comprehensively
 - Do not attempt to coordinate other agents or make design decisions""",
-            "tools": [simple_check_fixes],  # Only has access to simple_check_fixes tool
+            "tools": [simple_check_fixes_structured],  # Uses structured input/output version
+            "output_schema": FixCheckerOutput,  # SGLang constrained decoding schema
         },
         {
             "name": "internal_librarian",
@@ -329,7 +348,18 @@ IMPORTANT: As a subagent, you must:
         },
     ]
 
-    agent = create_agent("coder", system_prompt, subagents=coder_subagents, tools=CODER_TOOLS)
+    # Create agent with SGLang constrained decoding for final output
+    # The CoderOutput schema enforces structured candidate fixes
+    agent = create_agent(
+        "coder",
+        system_prompt,
+        subagents=coder_subagents,
+        tools=CODER_TOOLS,
+        output_schema=CoderOutput,  # SGLang constrained decoding for coder's final output
+        subagent_output_schemas={
+            "fix_checker": FixCheckerOutput,  # Constrained decoding for fix_checker's output
+        },
+    )
 
     result = agent.invoke({"messages": state["messages"]})
     return {

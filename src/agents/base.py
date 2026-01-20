@@ -17,6 +17,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable, RunnableBinding
 from langchain_openai import ChatOpenAI
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, ModelResponse
+from pydantic import BaseModel
 
 from config.settings import settings
 from src.memory import store
@@ -69,6 +70,141 @@ class RemoveFilesystemPromptMiddleware(AgentMiddleware):
             request = request.override(system_message=cleaned_system_message)
 
         return handler(request)
+
+
+class ConstrainedDecodingMiddleware(AgentMiddleware):
+    """Middleware that applies SGLang constrained decoding via JSON schema.
+
+    This middleware intercepts model calls and applies a JSON schema constraint
+    to enforce structured output. This is particularly useful for:
+    - Coding agent final output (candidate fixes)
+    - Fix checker subagent output (validation results)
+
+    SGLang supports constrained decoding through the OpenAI-compatible API
+    by passing response_format with json_schema type.
+    """
+
+    def __init__(self, output_schema: type[BaseModel], trigger_pattern: str | None = None):
+        """Initialize constrained decoding middleware.
+
+        Args:
+            output_schema: Pydantic model class defining the expected output structure
+            trigger_pattern: Optional regex pattern to match in system prompt that
+                             triggers constrained decoding. If None, always applies.
+        """
+        self.output_schema = output_schema
+        self.trigger_pattern = trigger_pattern
+        self._schema_dict = self._build_schema()
+
+    def _build_schema(self) -> dict:
+        """Build the JSON schema for SGLang's response_format parameter."""
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": self.output_schema.__name__,
+                "strict": True,
+                "schema": self.output_schema.model_json_schema(),
+            },
+        }
+
+    def _should_apply_constraint(self, request: ModelRequest) -> bool:
+        """Determine if constrained decoding should be applied to this request.
+
+        Returns True if:
+        - No trigger_pattern is set (always apply), or
+        - The system message content matches the trigger_pattern
+        """
+        if self.trigger_pattern is None:
+            return True
+
+        if request.system_message and hasattr(request.system_message, "content"):
+            return bool(re.search(self.trigger_pattern, request.system_message.content))
+
+        return False
+
+    def _is_final_response(self, request: ModelRequest) -> bool:
+        """Check if this is likely the final response (no pending tool calls).
+
+        We apply constrained decoding only when:
+        - There are no tools bound (pure generation)
+        - Or we detect signals that this is the final response
+        """
+        # If no tools are available, this is likely a final generation
+        if not request.tools:
+            return True
+
+        # Check the last message for indicators of final response
+        if request.messages:
+            last_msg = request.messages[-1]
+            if hasattr(last_msg, "content"):
+                content = str(last_msg.content).lower()
+                # Look for common final response triggers
+                final_triggers = [
+                    "provide your final",
+                    "return your answer",
+                    "generate the final",
+                    "output the result",
+                ]
+                if any(trigger in content for trigger in final_triggers):
+                    return True
+
+        return False
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Apply constrained decoding if conditions are met."""
+
+        # Check if we should apply constrained decoding
+        if not self._should_apply_constraint(request):
+            return handler(request)
+
+        # Apply response_format for constrained decoding
+        # Note: This modifies the request to include the JSON schema constraint
+        # SGLang will enforce this schema during generation
+
+        # Add response_format to the request kwargs if the model supports it
+        # This is passed through to the underlying LLM call
+        extra_body = request.kwargs.get("extra_body", {})
+        extra_body["response_format"] = self._schema_dict
+
+        modified_kwargs = dict(request.kwargs)
+        modified_kwargs["extra_body"] = extra_body
+
+        request = request.override(kwargs=modified_kwargs)
+
+        response = handler(request)
+
+        # Post-process: validate and parse the response
+        if response.message and hasattr(response.message, "content"):
+            try:
+                # Attempt to parse and validate against schema
+                content = response.message.content
+                if isinstance(content, str) and content.strip():
+                    # Try to parse as JSON and validate
+                    parsed = json.loads(content)
+                    validated = self.output_schema.model_validate(parsed)
+                    # Re-serialize to ensure consistent format
+                    validated_json = validated.model_dump_json()
+
+                    # Update the message with validated content
+                    from langchain_core.messages import AIMessage
+
+                    response = ModelResponse(
+                        message=AIMessage(
+                            content=validated_json,
+                            id=response.message.id,
+                            response_metadata=getattr(response.message, "response_metadata", {}),
+                        ),
+                        raw_response=response.raw_response,
+                    )
+            except (json.JSONDecodeError, Exception) as e:
+                # Log validation failure but don't block the response
+                print(f"⚠️ Constrained decoding validation warning: {e}")
+
+        return response
 
 
 def _parse_tool_calls_from_content(content: str) -> tuple[str, list[dict]]:
@@ -295,6 +431,8 @@ def create_agent(
     subagents: list | None = None,
     tools: list | None = None,
     middleware: list | None = None,
+    output_schema: type[BaseModel] | None = None,
+    subagent_output_schemas: dict[str, type[BaseModel]] | None = None,
 ):
     """Create a DeepAgent with built-in standard tools and memory capabilities.
 
@@ -305,6 +443,7 @@ def create_agent(
     - Subagent spawning via task tool
     - Search tool limiting (1 search call per program run)
     - Standard tools provided via middleware
+    - SGLang constrained decoding via output schemas
 
     Args:
         agent_name: Name of the agent (used for LLM configuration)
@@ -312,6 +451,8 @@ def create_agent(
         subagents: Optional list of subagents
         tools: Optional list of additional tools
         middleware: Optional list of additional middleware to apply after defaults
+        output_schema: Optional Pydantic model for constrained decoding of final output
+        subagent_output_schemas: Optional dict mapping subagent names to their output schemas
     """
     # Wrap main agent tools if provided
     wrapped_tools = []
@@ -348,6 +489,25 @@ def create_agent(
     # For architect agent, add middleware to remove filesystem prompts
     if agent_name == "architect" or agent_name == "coder":
         final_middleware.append(RemoveFilesystemPromptMiddleware())
+
+    # Add constrained decoding middleware if output schema is provided
+    if output_schema is not None:
+        print(
+            f"🔒 Enabling SGLang constrained decoding for {agent_name} with schema: {output_schema.__name__}"
+        )
+        final_middleware.append(ConstrainedDecodingMiddleware(output_schema=output_schema))
+
+    # Apply output schemas to subagents if specified
+    if subagent_output_schemas and wrapped_subagents:
+        for subagent in wrapped_subagents:
+            subagent_name = subagent.get("name")
+            if subagent_name and subagent_name in subagent_output_schemas:
+                schema = subagent_output_schemas[subagent_name]
+                print(
+                    f"🔒 Enabling SGLang constrained decoding for subagent {subagent_name} with schema: {schema.__name__}"
+                )
+                # Add output_schema to subagent config for deepagents to use
+                subagent["output_schema"] = schema
 
     return create_deep_agent(
         model=get_llm(agent_name),
