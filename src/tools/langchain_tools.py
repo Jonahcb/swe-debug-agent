@@ -798,6 +798,11 @@ def check_fixes(candidates_json: str) -> str:
 
                 full_path = os.path.join(worktree_path, file_path)
 
+                # Print base path and suffix path for debugging
+                print(f"🔍 [TOOL] check_fixes: Base path: {worktree_path}")
+                print(f"🔍 [TOOL] check_fixes: Suffix path: {file_path}")
+                print(f"🔍 [TOOL] check_fixes: Full path: {full_path}")
+
                 # Check if file exists
                 if not os.path.exists(full_path):
                     candidate_results.append(f"❌ {description}: File does not exist: {file_path}")
