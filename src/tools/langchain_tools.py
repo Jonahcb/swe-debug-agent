@@ -744,6 +744,7 @@ def ruff_format(path: str) -> str:
 # =============================================================================
 
 
+@tool
 def check_fixes(candidates_json: str) -> str:
     """Validate that candidate fixes can be applied to files by checking if old_string exists in each file.
 
