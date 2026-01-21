@@ -16,7 +16,9 @@ def setup_worktree(state: AgentState) -> dict:
     )
 
     print("📁 WorktreeManager initialized")
-    repo_path = worktree_manager.create_environment(base_branch="add-moe-lora-support")
+    repo_path = worktree_manager.create_environment(
+        base_branch=os.environ.get("BASE_BRANCH", "main")
+    )
 
     print(f"🏁 Worktree setup complete: {repo_path}")
 
@@ -26,8 +28,8 @@ def setup_worktree(state: AgentState) -> dict:
             **state.get("context", {}),
             # Don't store WorktreeManager object in state - it's not serializable
             # Store only the paths needed for cleanup
-            "worktree_base_repo": os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo"),
-            "worktree_worktrees_dir": os.environ.get("WORKTREES_DIR", "/path/to/worktrees"),
+            "worktree_base_repo": os.environ.get("SGLANG_DIR", ""),
+            "worktree_worktrees_dir": os.environ.get("WORKTREES_DIR", ""),
         },
     }
 
