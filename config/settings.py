@@ -29,8 +29,6 @@ TARGET_TEST_CLASS = "TestLoRAHFSGLLogprobDifference"
 TARGET_TEST_METHOD = "test_moe_lora_logprob_comparison_full"
 TARGET_TEST_FULL = f"{TARGET_TEST_MODULE}.{TARGET_TEST_CLASS}.{TARGET_TEST_METHOD}"
 
-# Test command to run (DISABLED - No GPU available)
-TEST_COMMAND = f"# DISABLED - No GPU available: python -m pytest test/srt/{TARGET_TEST_MODULE}.py::{TARGET_TEST_CLASS}::{TARGET_TEST_METHOD} -v"
 
 # Key directories to search in SGLang codebase
 SGLANG_KEY_PATHS = [
@@ -98,7 +96,6 @@ class Settings:
     test_base_path: str = field(
         default_factory=lambda: os.environ.get("TEST_BASE_PATH", TARGET_TEST_FULL)
     )
-    test_command: str = TEST_COMMAND
     max_iterations: int = MAX_DEBUG_ITERATIONS
 
     # GPU memory management settings

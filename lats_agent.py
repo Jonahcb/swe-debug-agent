@@ -92,7 +92,6 @@ IMMUTABLE_PATTERNS = [
 ]
 
 # Test configuration
-TEST_COMMAND = f"CUDA_VISIBLE_DEVICES=2 \\\n/raid/home/chenyang/miniconda3/envs/lats/bin/python -m unittest -vv \\\n  {settings.test_base_path}"
 TEST_TIMEOUT = 600  # 10 minutes
 
 # LATS configuration
@@ -710,9 +709,7 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             device=settings.gpu_device, reserve_gb=settings.gpu_memory_reserve_gb, persistent=True
         )
 
-    with trace(
-        "Test_Execution", "tool", inputs={"node_id": node.id, "test_command": TEST_COMMAND}
-    ) as rt:
+    with trace("Test_Execution", "tool", inputs={"node_id": node.id}) as rt:
         try:
             # Release GPU memory reservation for test execution
             if gpu_manager and gpu_manager.framework_reservation_active:
