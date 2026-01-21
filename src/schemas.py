@@ -22,20 +22,26 @@ class ModifiedFile(BaseModel):
     """A single file modification in a candidate fix."""
 
     file_path: str = Field(description="Full absolute path to the file being modified")
-    old_string: str = Field(description="Existing code block to replace, with enough context to be unique")
+    old_string: str = Field(
+        description="Existing code block to replace, with enough context to be unique"
+    )
     new_string: str = Field(description="New code to replace the old_string with")
 
 
 class CandidateFix(BaseModel):
     """A single candidate fix that addresses one or more bugs."""
 
-    description: str = Field(description="Brief description of this candidate fix and which bugs it addresses")
-    modified_files: list[ModifiedFile] = Field(description="List of file modifications for this fix")
+    description: str = Field(
+        description="Brief description of this candidate fix and which bugs it addresses"
+    )
+    modified_files: list[ModifiedFile] = Field(
+        description="List of file modifications for this fix"
+    )
 
 
 class CoderOutput(BaseModel):
     """Structured output from the coding agent containing candidate fixes.
-    
+
     This schema is used for SGLang constrained decoding to ensure the
     coder agent always produces valid, parseable candidate fixes.
     """
@@ -62,7 +68,7 @@ class FixTuple(BaseModel):
 
 class FixCheckerInput(BaseModel):
     """Input format for the fix_checker subagent.
-    
+
     The coder agent must produce this structured format when calling
     the fix_checker subagent.
     """
@@ -79,12 +85,14 @@ class FixValidationResult(BaseModel):
     file_path: str = Field(description="Path to the file checked")
     is_valid: bool = Field(description="Whether the old_string was found in the file")
     message: str = Field(description="Detailed validation message")
-    file_contents: Optional[str] = Field(default=None, description="Full file contents when validation fails (for debugging)")
+    file_contents: Optional[str] = Field(
+        default=None, description="Full file contents when validation fails (for debugging)"
+    )
 
 
 class FixCheckerOutput(BaseModel):
     """Output format from the fix_checker subagent.
-    
+
     This schema is used for SGLang constrained decoding to ensure
     the fix_checker always returns structured validation results.
     """
@@ -142,10 +150,10 @@ class FinalBugAnalysisInput(RootModel[dict[str, BugInfo]]):
 
 def get_json_schema(model: type[BaseModel]) -> dict:
     """Get JSON schema from a Pydantic model for SGLang constrained decoding.
-    
+
     Args:
         model: A Pydantic BaseModel class
-        
+
     Returns:
         JSON schema dict suitable for SGLang's response_format parameter
     """
