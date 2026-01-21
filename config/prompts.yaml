@@ -155,7 +155,6 @@ architect:
 
     **CRITICAL** You must not make any assumptions. Only think based on complete research provided by the internal_librarian and external_librarian subagents launched via the task tool.
 
-    When test passes, declare [complete]. Do not give up - keep iterating until it works!
 
 critic:
   system: |
