@@ -1158,101 +1158,147 @@ def analyze_with_architect(state: TreeState) -> dict:
 
     # Extract analysis from architect's response
     architect_response = ""
+    final_bug_analysis_called = False
+    final_bug_data = None
+
     if result.get("messages"):
         last_msg = result["messages"][-1]
         architect_response = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
 
-    # Extract structured bug analysis from architect's response
-    # The architect returns bug analysis in format: {bug_1: {...}, bug_2: {...}, ...}
-    # We need to extract only the structured response, filtering out any thinking or fluff
-
-    # Look for the structured bug analysis format (supports both JSON and Python dict formats)
-    bug_analysis_content = ""
-    parsed_bugs = None
-
-    # First, try to parse as JSON format
-    try:
-        # Look for JSON object containing bug entries
-        json_match = re.search(
-            r'\{[^{}]*"bug_\d+"[^{}]*\{.*?\}[^{}]*\}', architect_response, re.DOTALL
-        )
-        if json_match:
-            potential_json = json_match.group(0)
-            # Try to balance braces to get complete JSON object
-            brace_count = 0
-            end_pos = 0
-            for i, char in enumerate(potential_json):
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end_pos = i + 1
-                        break
-            if end_pos > 0:
-                json_str = potential_json[:end_pos]
-                parsed_bugs = json.loads(json_str)
-                bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-    except (json.JSONDecodeError, ValueError):
-        pass  # JSON parsing failed, try next method
-
-    # If JSON parsing failed, try Python dictionary format
-    if not parsed_bugs:
-        try:
-            # Find Python dict structure with bug entries
-            dict_match = re.search(
-                r"\{bug_\d+:\s*\{.*?\}\s*\}(?:\s*\{bug_\d+:\s*\{.*?\}\s*\})*",
-                architect_response,
-                re.DOTALL,
-            )
-            if dict_match:
-                dict_str = dict_match.group(0)
-                # Convert Python dict syntax to JSON-compatible format for parsing
-                json_compatible = dict_str
-
-                # Replace specific known keys that should be quoted
-                json_compatible = json_compatible.replace("bug_", '"bug_')
-                json_compatible = json_compatible.replace(": {", '": {')
-                json_compatible = json_compatible.replace(
-                    "relevant_files_and_lines:", '"relevant_files_and_lines":'
-                )
-                json_compatible = json_compatible.replace("description:", '"description":')
-
-                # Replace single quotes with double quotes for string values
-                json_compatible = json_compatible.replace("'", '"')
-
-                parsed_bugs = json.loads(json_compatible)
-                bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-        except (json.JSONDecodeError, ValueError):
-            pass  # Dict parsing failed, try fallback
-
-    # If both structured parsing failed, use line-based fallback
-    if not parsed_bugs:
-        # Fallback: look for any content that looks like structured bug analysis
-        # Look for lines containing "bug_" and "relevant_files_and_lines"
-        lines = architect_response.split("\n")
-        bug_lines = []
-        in_bug_section = False
-        for line in lines:
-            if "bug_" in line and "relevant_files_and_lines" in line:
-                in_bug_section = True
-            if in_bug_section:
-                bug_lines.append(line)
-                # Stop when we hit a non-bug line or section break
-                if line.strip() and not (
-                    "bug_" in line or "relevant_files_and_lines" in line or "description" in line
-                ):
+        # Check if architect called final_bug_analysis tool
+        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+            for tool_call in last_msg.tool_calls:
+                if tool_call.get("name") == "final_bug_analysis":
+                    final_bug_analysis_called = True
+                    # Extract the bug analysis data from the tool call
+                    try:
+                        final_bug_data = tool_call.get("args", {}).get("bug_analysis", {})
+                        print(
+                            f"🎯 Architect called final_bug_analysis tool with {len(final_bug_data)} bugs"
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Error parsing final_bug_analysis tool call: {e}")
                     break
-        if bug_lines:
-            bug_analysis_content = "\n".join(bug_lines).strip()
 
-    # If no structured bugs found, use the full response (fallback)
-    if not bug_analysis_content:
-        bug_analysis_content = "No bug analysis found"
+    # If final_bug_analysis was called, use that data directly
+    if final_bug_analysis_called and final_bug_data:
+        parsed_bugs = final_bug_data
+        bug_analysis_content = json.dumps(parsed_bugs, indent=2)
+    else:
+        # Extract structured bug analysis from architect's response (legacy parsing)
+        # The architect returns bug analysis in format: {bug_1: {...}, bug_2: {...}, ...}
+        # We need to extract only the structured response, filtering out any thinking or fluff
+
+        # Look for the structured bug analysis format (supports multiple formats)
+        bug_analysis_content = ""
+        parsed_bugs = None
+
+        # First, try to parse markdown header + JSON code block format (new architect format)
+        try:
+            # Pattern to match "## **Bug #X: Title**" followed by "```json" block
+            bug_header_pattern = r"## \*\*Bug #(\d+):.*?\*\*\s*```json\s*(\{.*?\})\s*```"
+            matches = re.findall(bug_header_pattern, architect_response, re.DOTALL)
+
+            if matches:
+                parsed_bugs = {}
+                for bug_number, json_content in matches:
+                    try:
+                        bug_data = json.loads(json_content.strip())
+                        parsed_bugs[f"bug_{bug_number}"] = bug_data
+                    except json.JSONDecodeError:
+                        continue  # Skip malformed JSON
+
+                if parsed_bugs:
+                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
+        except Exception:
+            pass  # Markdown + JSON parsing failed, try next method
+
+        # If markdown parsing failed, try to parse as JSON format
+        try:
+            # Look for JSON object containing bug entries
+            json_match = re.search(
+                r'\{[^{}]*"bug_\d+"[^{}]*\{.*?\}[^{}]*\}', architect_response, re.DOTALL
+            )
+            if json_match:
+                potential_json = json_match.group(0)
+                # Try to balance braces to get complete JSON object
+                brace_count = 0
+                end_pos = 0
+                for i, char in enumerate(potential_json):
+                    if char == "{":
+                        brace_count += 1
+                    elif char == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_pos = i + 1
+                            break
+                if end_pos > 0:
+                    json_str = potential_json[:end_pos]
+                    parsed_bugs = json.loads(json_str)
+                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
+        except (json.JSONDecodeError, ValueError):
+            pass  # JSON parsing failed, try next method
+
+        # If JSON parsing failed, try Python dictionary format
+        if not parsed_bugs:
+            try:
+                # Find Python dict structure with bug entries
+                dict_match = re.search(
+                    r"\{bug_\d+:\s*\{.*?\}\s*\}(?:\s*\{bug_\d+:\s*\{.*?\}\s*\})*",
+                    architect_response,
+                    re.DOTALL,
+                )
+                if dict_match:
+                    dict_str = dict_match.group(0)
+                    # Convert Python dict syntax to JSON-compatible format for parsing
+                    json_compatible = dict_str
+
+                    # Replace specific known keys that should be quoted
+                    json_compatible = json_compatible.replace("bug_", '"bug_')
+                    json_compatible = json_compatible.replace(": {", '": {')
+                    json_compatible = json_compatible.replace(
+                        "relevant_files_and_lines:", '"relevant_files_and_lines":'
+                    )
+                    json_compatible = json_compatible.replace("description:", '"description":')
+
+                    # Replace single quotes with double quotes for string values
+                    json_compatible = json_compatible.replace("'", '"')
+
+                    parsed_bugs = json.loads(json_compatible)
+                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
+            except (json.JSONDecodeError, ValueError):
+                pass  # Dict parsing failed, try fallback
+
+        # If both structured parsing failed, use line-based fallback
+        if not parsed_bugs:
+            # Fallback: look for any content that looks like structured bug analysis
+            # Look for lines containing "bug_" and "relevant_files_and_lines"
+            lines = architect_response.split("\n")
+            bug_lines = []
+            in_bug_section = False
+            for line in lines:
+                if "bug_" in line and "relevant_files_and_lines" in line:
+                    in_bug_section = True
+                if in_bug_section:
+                    bug_lines.append(line)
+                    # Stop when we hit a non-bug line or section break
+                    if line.strip() and not (
+                        "bug_" in line
+                        or "relevant_files_and_lines" in line
+                        or "description" in line
+                    ):
+                        break
+            if bug_lines:
+                bug_analysis_content = "\n".join(bug_lines).strip()
+
+        # If no structured bugs found, use the full response (fallback)
+        if not bug_analysis_content:
+            bug_analysis_content = "No bug analysis found"
 
     # Update context with architect's analysis (both structured and string formats)
     context = state.get("context", {}).copy()
     context["architect_analysis"] = bug_analysis_content
+    context["final_bug_analysis_called"] = final_bug_analysis_called
     if parsed_bugs:
         context["parsed_bug_analysis"] = parsed_bugs
 
@@ -1898,14 +1944,22 @@ def should_research_more(state: TreeState) -> str:
     """
     Determine if architect wants more research or is ready to expand.
 
-    Looks for handoff markers in architect's response:
-    - [handoff:internal_librarian] -> research_internal
-    - [handoff:external_librarian] -> research_external
-    - No handoff markers or [handoff:coder] -> expand (ready to implement)
+    Priority order:
+    1. If final_bug_analysis tool was called -> expand (ready to implement)
+    2. Look for handoff markers in architect's response:
+       - [handoff:internal_librarian] -> research_internal
+       - [handoff:external_librarian] -> research_external
+    3. No handoff markers -> expand (ready to implement)
 
     Only the first handoff marker is processed. The architect can only hand off to one librarian per response.
     """
     context = state.get("context", {})
+
+    # Check if final_bug_analysis tool was called (highest priority)
+    if context.get("final_bug_analysis_called", False):
+        print("🎯 Architect called final_bug_analysis tool - proceeding to expand phase")
+        return "expand"
+
     architect_analysis = context.get("architect_analysis", "").lower()
 
     # Parse handoff markers from the architect's response

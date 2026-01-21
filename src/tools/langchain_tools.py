@@ -8,7 +8,7 @@ from langchain_core.tools import tool
 
 from src.tools.github import GitHubClient
 from src.tools.ruff import format_file, lint_file
-from src.schemas import FixCheckerInput, FixTuple, FixValidationResult
+from src.schemas import FinalBugAnalysisInput, FixCheckerInput, FixTuple, FixValidationResult
 
 from config.settings import settings
 
@@ -1037,11 +1037,80 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
 
 
 # =============================================================================
+# Final Bug Analysis Tool
+# =============================================================================
+
+
+@tool(args_schema=FinalBugAnalysisInput)
+def final_bug_analysis(bug_analysis: dict) -> str:
+    """Provide the final bug analysis to transition to the expand/coder phase.
+
+    This tool uses SGLang's strict tool call constrained decoding with the
+    FinalBugAnalysisInput schema to ensure the architect provides bug analysis
+    in the exact structured format expected by the coder agent.
+
+    Args:
+        bug_analysis: Dictionary containing bug analysis in the format:
+            {
+                "bug_1": {
+                    "relevant_files_and_lines": "file.py:123-125, file2.py:456",
+                    "description": "Technical low-level one sentence bug description and potential fixes"
+                },
+                "bug_2": {
+                    "relevant_files_and_lines": "file.py:789, file3.py:101",
+                    "description": "Technical low-level one sentence bug description and potential fixes"
+                },
+                ...
+            }
+
+    Returns:
+        Confirmation message that the bug analysis has been accepted and will be passed to the coder
+    """
+    print("🎯 [TOOL] final_bug_analysis: Architect providing final bug analysis")
+
+    if not bug_analysis:
+        return "❌ Error: No bug analysis provided"
+
+    # Validate the format
+    if not isinstance(bug_analysis, dict):
+        return "❌ Error: Bug analysis must be a dictionary"
+
+    # Check that all keys start with "bug_"
+    for key in bug_analysis.keys():
+        if not key.startswith("bug_"):
+            return f"❌ Error: All bug keys must start with 'bug_', found: {key}"
+
+    # Check that each bug has the required fields
+    required_fields = ["relevant_files_and_lines", "description"]
+    for bug_key, bug_info in bug_analysis.items():
+        if not isinstance(bug_info, dict):
+            return f"❌ Error: Bug {bug_key} must be a dictionary"
+
+        for field in required_fields:
+            if field not in bug_info:
+                return f"❌ Error: Bug {bug_key} missing required field: {field}"
+
+    # Format validation passed
+    bug_count = len(bug_analysis)
+    print(f"✅ Final bug analysis accepted: {bug_count} bugs identified")
+
+    # Return formatted confirmation - this will be used by the LATS agent
+    formatted_analysis = "\n".join(
+        [
+            f'{{bug_{key}: {{relevant_files_and_lines: "{info["relevant_files_and_lines"]}", description: "{info["description"]}"}}}}'
+            for key, info in bug_analysis.items()
+        ]
+    )
+
+    return f"🎯 FINAL BUG ANALYSIS ACCEPTED - Transitioning to expand/coder phase\n\n{formatted_analysis}"
+
+
+# =============================================================================
 # Tool Collections for Different Agent Roles
 # =============================================================================
 
-# Architect: Planning and coordination (no tools - pure reasoning)
-ARCHITECT_TOOLS = []
+# Architect: Planning and coordination (final bug analysis tool)
+ARCHITECT_TOOLS = [final_bug_analysis]
 
 # Coder: Implementing code changes from architect's plan
 # Note: Filesystem tools (read_file, write_file, edit_file, list_files, glob, grep)

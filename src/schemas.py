@@ -9,6 +9,7 @@ SGLang's constrained decoding uses JSON Schema to enforce valid output structure
 improving reliability and reducing parsing errors.
 """
 
+from typing import Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -78,7 +79,7 @@ class FixValidationResult(BaseModel):
     file_path: str = Field(description="Path to the file checked")
     is_valid: bool = Field(description="Whether the old_string was found in the file")
     message: str = Field(description="Detailed validation message")
-    file_contents: str | None = Field(default=None, description="Full file contents when validation fails (for debugging)")
+    file_contents: Optional[str] = Field(default=None, description="Full file contents when validation fails (for debugging)")
 
 
 class FixCheckerOutput(BaseModel):
@@ -100,13 +101,41 @@ class FixCheckerOutput(BaseModel):
 
 class SimpleCheckFixesInput(BaseModel):
     """Structured input for the simple_check_fixes tool.
-    
+
     This schema enforces that the fix_checker subagent always provides
     properly structured input to the simple_check_fixes tool.
     """
 
     fixes_list: list[tuple[str, str]] = Field(
         description="List of (file_path, old_string) tuples to validate"
+    )
+
+
+# =============================================================================
+# Final Bug Analysis Tool Input Schema
+# =============================================================================
+
+
+class BugInfo(BaseModel):
+    """Information about a single identified bug."""
+
+    relevant_files_and_lines: str = Field(
+        description="Specific file paths and line numbers where the bug manifests (e.g., 'file.py:123-125, file2.py:456')"
+    )
+    description: str = Field(
+        description="Technical low-level one sentence description of the bug and potential fixes"
+    )
+
+
+class FinalBugAnalysisInput(BaseModel):
+    """Input format for the final_bug_analysis tool.
+
+    This schema enforces SGLang constrained decoding to ensure the architect
+    provides bug analysis in the exact expected format.
+    """
+
+    bug_analysis: dict[str, BugInfo] = Field(
+        description="Dictionary mapping bug IDs (bug_1, bug_2, etc.) to bug information"
     )
 
 
@@ -132,3 +161,4 @@ CODER_OUTPUT_SCHEMA = get_json_schema(CoderOutput)
 FIX_CHECKER_INPUT_SCHEMA = get_json_schema(FixCheckerInput)
 FIX_CHECKER_OUTPUT_SCHEMA = get_json_schema(FixCheckerOutput)
 SIMPLE_CHECK_FIXES_INPUT_SCHEMA = get_json_schema(SimpleCheckFixesInput)
+FINAL_BUG_ANALYSIS_INPUT_SCHEMA = get_json_schema(FinalBugAnalysisInput)
