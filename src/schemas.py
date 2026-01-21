@@ -78,6 +78,7 @@ class FixValidationResult(BaseModel):
     file_path: str = Field(description="Path to the file checked")
     is_valid: bool = Field(description="Whether the old_string was found in the file")
     message: str = Field(description="Detailed validation message")
+    file_contents: str | None = Field(default=None, description="Full file contents when validation fails (for debugging)")
 
 
 class FixCheckerOutput(BaseModel):

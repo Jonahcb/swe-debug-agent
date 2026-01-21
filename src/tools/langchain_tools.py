@@ -852,7 +852,7 @@ def simple_check_fixes(fixes_list: list) -> str:
 
         # Read file content
         try:
-            with open(full_path, "r", encoding="utf-8") as f:
+            with open(full_path, encoding="utf-8") as f:
                 file_content = f.read()
         except Exception as e:
             results.append(f"❌ Fix {i + 1}: Cannot read file {file_path}: {e}")
@@ -984,7 +984,7 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
 
         # Read file content
         try:
-            with open(full_path, "r", encoding="utf-8") as f:
+            with open(full_path, encoding="utf-8") as f:
                 file_content = f.read()
         except Exception as e:
             results.append(
@@ -1015,6 +1015,7 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
                     file_path=file_path,
                     is_valid=False,
                     message="old_string NOT found in file (cannot apply fix)",
+                    file_contents=file_content,  # Include full file contents for debugging
                 )
             )
             all_valid = False
