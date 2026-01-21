@@ -1016,7 +1016,7 @@ def run_initial_test(state: TreeState) -> dict:
     """
     print(f"\n🧪 [INITIAL TEST] Running test on root node to get baseline failure")
 
-    workspace_dir = state.get("repo_path", os.environ.get("SGLANG_DIR", os.getcwd()))
+    workspace_dir = os.environ.get("SGLANG_DIR", "")
     root_id = state["root_id"]
     root = get_node(state, root_id)
 
@@ -1500,7 +1500,7 @@ def execute_candidates(state: TreeState) -> dict:
     """
     Execute tests for all candidate nodes using the test runner agent pattern.
     """
-    workspace_dir = state.get("repo_path", os.environ.get("SGLANG_DIR", os.getcwd()))
+    workspace_dir = os.environ.get("SGLANG_DIR", "")
 
     print(f"\n⚡ [EXECUTE] Testing {len(state['candidate_ids'])} candidates")
 
@@ -1978,7 +1978,6 @@ def create_checkpointer():
 @traceable(run_type="chain", name="LATS_Run")
 def run_lats(
     initial_code_path: str | None = None,
-    workspace_dir: str | None = None,
     thread_id: str | None = None,
     max_iterations: int | None = None,
     num_candidates: int | None = None,
@@ -1996,7 +1995,6 @@ def run_lats(
 
     Args:
         initial_code_path: Path to the initial code file to fix
-        workspace_dir: Path to the workspace directory
         thread_id: Thread ID for persistence (allows resumption)
         max_iterations: Maximum number of LATS iterations (default: MAX_ITERATIONS)
         num_candidates: Number of candidates per expansion (default: NUM_CANDIDATES)
@@ -2007,12 +2005,6 @@ def run_lats(
     # Use provided values or defaults
     iterations_limit = max_iterations if max_iterations is not None else MAX_ITERATIONS
     candidates_count = num_candidates if num_candidates is not None else NUM_CANDIDATES
-    # Set workspace directory (will be overridden by worktree path from setup)
-    if workspace_dir:
-        os.environ["SGLANG_DIR"] = workspace_dir
-    workspace = Path(os.environ.get("SGLANG_DIR", os.getcwd()))
-
-    # Note: The actual workspace will be set by the worktree path after setup
 
     # Generate thread ID if not provided
     if thread_id is None:
@@ -2037,7 +2029,6 @@ def run_lats(
         "messages": [],
         "context": {
             "target_files": "Any files in the codebase",
-            "workspace": str(workspace),  # Will be updated by worktree path
             "max_iterations": iterations_limit,
             "num_candidates": candidates_count,
         },

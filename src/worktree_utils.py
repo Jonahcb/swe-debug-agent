@@ -11,8 +11,8 @@ def setup_worktree(state: AgentState) -> dict:
     print("🚀 Setting up worktree environment...")
 
     worktree_manager = WorktreeManager(
-        base_repo_path=os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo"),
-        worktrees_dir=os.environ.get("WORKTREES_DIR", "/path/to/worktrees"),
+        base_repo_path=os.environ.get("SGLANG_DIR", ""),
+        worktrees_dir=os.environ.get("WORKTREES_DIR", ""),
     )
 
     print("📁 WorktreeManager initialized")
@@ -38,12 +38,8 @@ def cleanup_worktree(state: AgentState) -> dict:
     repo_path = state.get("repo_path")
 
     # Recreate WorktreeManager from stored paths instead of retrieving from state
-    base_repo = context.get(
-        "worktree_base_repo", os.environ.get("BASE_REPO_PATH", "/path/to/sglang/repo")
-    )
-    worktrees_dir = context.get(
-        "worktree_worktrees_dir", os.environ.get("WORKTREES_DIR", "/path/to/worktrees")
-    )
+    base_repo = context.get("worktree_base_repo", os.environ.get("SGLANG_DIR", ""))
+    worktrees_dir = context.get("worktree_worktrees_dir", os.environ.get("WORKTREES_DIR", ""))
 
     if repo_path:
         worktree_manager = WorktreeManager(
