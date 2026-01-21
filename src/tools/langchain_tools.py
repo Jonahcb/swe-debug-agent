@@ -1041,6 +1041,25 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
 # =============================================================================
 
 
+# Global state to trigger expand phase from tool
+_expand_trigger_data = None
+
+
+def trigger_expand_phase(bug_data):
+    """Set global trigger for expand phase."""
+    global _expand_trigger_data
+    _expand_trigger_data = bug_data
+    print("🎯 [TOOL] final_bug_analysis: Expand phase triggered with bug data")
+
+
+def get_expand_trigger():
+    """Get and clear the expand trigger data."""
+    global _expand_trigger_data
+    data = _expand_trigger_data
+    _expand_trigger_data = None
+    return data
+
+
 @tool(args_schema=FinalBugAnalysisInput)
 def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) -> str:
     """Provide the final bug analysis to transition to the expand/coder phase.
@@ -1091,6 +1110,9 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
     # Format validation passed
     bug_count = len(bugs_dict)
     print(f"✅ Final bug analysis accepted: {bug_count} bugs identified")
+
+    # TRIGGER EXPAND PHASE DIRECTLY FROM TOOL
+    trigger_expand_phase(bugs_dict)
 
     # Return formatted confirmation - this will be used by the LATS agent
     formatted_analysis = "\n".join(

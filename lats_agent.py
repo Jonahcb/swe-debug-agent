@@ -1065,225 +1065,73 @@ def analyze_with_architect(state: TreeState) -> dict:
     """
     Use the architect agent to analyze the current failure and plan fixes.
 
-    The architect receives:
-    - Test output and current code
-    - Research from internal librarian (SGLang codebase)
-    - Research from external librarian (vLLM, HuggingFace, etc.)
-
-    Then produces an analysis with recommended fix strategies.
+    The architect receives test output, current code, and any research context
+    from previous librarian calls. If the architect calls final_bug_analysis,
+    it immediately triggers the expand phase.
     """
     print(f"\n🏗️ [ARCHITECT] Analyzing failure and planning fixes (with research)")
-
-    selected_id = state["selected_node_id"]
-    selected = get_node(state, selected_id)
-    context = state.get("context", {})
-
-    # Get research from librarians (may be empty on first call)
-    internal_research = context.get(
-        "internal_research", "No internal research yet - architect called first"
-    )
-    external_research = context.get(
-        "external_research", "No external research yet - architect called first"
-    )
-
-    # Check if this is the initial analysis (iteration 0) - use initial test results
-    is_initial_analysis = state["iteration"] == 0 and "initial_test_output" in context
-    repo_path = state.get("repo_path", "")
-    if is_initial_analysis:
-        # Use initial test results for the first architect analysis
-        test_output = context.get("initial_test_output", "No initial test output")
-        current_score = context.get("initial_score", 0.0)
-        print(f"   Using initial test results (iteration 0)")
-    else:
-        # Use selected node's results for subsequent analyses
-        test_output = selected.test_output if selected.test_output else "No test output yet"
-        current_score = selected.score
-
-    # Trim messages if needed to prevent context overflow
-    messages = trim_messages_if_needed(state.get("messages", []))
-
-    # Check for context awareness
-    context_warning = ""
-    if len(messages) > 15:  # If we have many messages, warn about context limits
-        context_warning = (
-            "\n\n⚠️ CONTEXT LIMIT AWARENESS: This conversation has been ongoing for multiple iterations. "
-            "Focus on the most recent findings and avoid repeating previous analyses unless specifically relevant."
-        )
-
-    # Prepare prompt for architect with research context
-    analysis_prompt = (
-        """Research, think about, and compose a plan to fix the SGLang LoRA MoE code bug."""
-    )
-
-    # Create a mini-state for the architect
-    architect_state = {
-        "messages": [HumanMessage(content=analysis_prompt)],
-        "context": state.get("context", {}),
-        "current_agent": "architect",
-    }
 
     # Make current node's code snapshot available to filesystem tools
     import json
 
+    selected = get_node(state, state["selected_node_id"])
     os.environ["CURRENT_NODE_CODE_SNAPSHOT"] = json.dumps(selected.code_changes)
+
+    # Create a mini-state for the architect
+    architect_state = {
+        "messages": [
+            HumanMessage(
+                content="Research, think about, and compose a plan to fix the SGLang LoRA MoE code bug."
+            )
+        ],
+        "context": state.get("context", {}),
+        "current_agent": "architect",
+    }
 
     # Run architect agent
     result = architect_node(architect_state)
 
-    # Extract analysis from architect's response
+    # Extract architect response for handoff marker detection
     architect_response = ""
-    final_bug_analysis_called = False
-    final_bug_data = None
-
     if result.get("messages"):
         last_msg = result["messages"][-1]
         architect_response = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
 
-        # Check if architect called final_bug_analysis tool
-        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-            for tool_call in last_msg.tool_calls:
-                if tool_call.get("name") == "final_bug_analysis":
-                    final_bug_analysis_called = True
-                    # Extract the bug analysis data directly from the tool call args (RootModel provides dict)
-                    try:
-                        final_bug_data = tool_call.get("args", {})
-                        print(
-                            f"🎯 Architect called final_bug_analysis tool with {len(final_bug_data)} bugs"
-                        )
-                    except Exception as e:
-                        print(f"⚠️ Error parsing final_bug_analysis tool call: {e}")
-                    break
+    # Check if final_bug_analysis tool triggered expand phase
+    from src.tools.langchain_tools import get_expand_trigger
 
-    # If final_bug_analysis was called, use that data directly
-    if final_bug_analysis_called and final_bug_data:
-        parsed_bugs = final_bug_data
+    triggered_bug_data = get_expand_trigger()
+
+    # If final_bug_analysis tool triggered expand phase, immediately transition
+    if triggered_bug_data:
+        print("🎯 FINAL BUG ANALYSIS TOOL TRIGGERED - IMMEDIATELY TRANSITIONING TO EXPAND PHASE")
+        parsed_bugs = triggered_bug_data
         bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-    else:
-        # Extract structured bug analysis from architect's response (legacy parsing)
-        # The architect returns bug analysis in format: {bug_1: {...}, bug_2: {...}, ...}
-        # We need to extract only the structured response, filtering out any thinking or fluff
 
-        # Look for the structured bug analysis format (supports multiple formats)
-        bug_analysis_content = ""
-        parsed_bugs = None
-
-        # First, try to parse markdown header + JSON code block format (new architect format)
-        try:
-            # Pattern to match "## **Bug #X: Title**" followed by "```json" block
-            bug_header_pattern = r"## \*\*Bug #(\d+):.*?\*\*\s*```json\s*(\{.*?\})\s*```"
-            matches = re.findall(bug_header_pattern, architect_response, re.DOTALL)
-
-            if matches:
-                parsed_bugs = {}
-                for bug_number, json_content in matches:
-                    try:
-                        bug_data = json.loads(json_content.strip())
-                        parsed_bugs[f"bug_{bug_number}"] = bug_data
-                    except json.JSONDecodeError:
-                        continue  # Skip malformed JSON
-
-                if parsed_bugs:
-                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-        except Exception:
-            pass  # Markdown + JSON parsing failed, try next method
-
-        # If markdown parsing failed, try to parse as JSON format
-        try:
-            # Look for JSON object containing bug entries
-            json_match = re.search(
-                r'\{[^{}]*"bug_\d+"[^{}]*\{.*?\}[^{}]*\}', architect_response, re.DOTALL
-            )
-            if json_match:
-                potential_json = json_match.group(0)
-                # Try to balance braces to get complete JSON object
-                brace_count = 0
-                end_pos = 0
-                for i, char in enumerate(potential_json):
-                    if char == "{":
-                        brace_count += 1
-                    elif char == "}":
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_pos = i + 1
-                            break
-                if end_pos > 0:
-                    json_str = potential_json[:end_pos]
-                    parsed_bugs = json.loads(json_str)
-                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-        except (json.JSONDecodeError, ValueError):
-            pass  # JSON parsing failed, try next method
-
-        # If JSON parsing failed, try Python dictionary format
-        if not parsed_bugs:
-            try:
-                # Find Python dict structure with bug entries
-                dict_match = re.search(
-                    r"\{bug_\d+:\s*\{.*?\}\s*\}(?:\s*\{bug_\d+:\s*\{.*?\}\s*\})*",
-                    architect_response,
-                    re.DOTALL,
-                )
-                if dict_match:
-                    dict_str = dict_match.group(0)
-                    # Convert Python dict syntax to JSON-compatible format for parsing
-                    json_compatible = dict_str
-
-                    # Replace specific known keys that should be quoted
-                    json_compatible = json_compatible.replace("bug_", '"bug_')
-                    json_compatible = json_compatible.replace(": {", '": {')
-                    json_compatible = json_compatible.replace(
-                        "relevant_files_and_lines:", '"relevant_files_and_lines":'
-                    )
-                    json_compatible = json_compatible.replace("description:", '"description":')
-
-                    # Replace single quotes with double quotes for string values
-                    json_compatible = json_compatible.replace("'", '"')
-
-                    parsed_bugs = json.loads(json_compatible)
-                    bug_analysis_content = json.dumps(parsed_bugs, indent=2)
-            except (json.JSONDecodeError, ValueError):
-                pass  # Dict parsing failed, try fallback
-
-        # If both structured parsing failed, use line-based fallback
-        if not parsed_bugs:
-            # Fallback: look for any content that looks like structured bug analysis
-            # Look for lines containing "bug_" and "relevant_files_and_lines"
-            lines = architect_response.split("\n")
-            bug_lines = []
-            in_bug_section = False
-            for line in lines:
-                if "bug_" in line and "relevant_files_and_lines" in line:
-                    in_bug_section = True
-                if in_bug_section:
-                    bug_lines.append(line)
-                    # Stop when we hit a non-bug line or section break
-                    if line.strip() and not (
-                        "bug_" in line
-                        or "relevant_files_and_lines" in line
-                        or "description" in line
-                    ):
-                        break
-            if bug_lines:
-                bug_analysis_content = "\n".join(bug_lines).strip()
-
-        # If no structured bugs found, use the full response (fallback)
-        if not bug_analysis_content:
-            bug_analysis_content = "No bug analysis found"
-
-    # Update context with architect's analysis (both structured and string formats)
-    context = state.get("context", {}).copy()
-    context["architect_analysis"] = bug_analysis_content
-    context["final_bug_analysis_called"] = final_bug_analysis_called
-    if parsed_bugs:
+        # Update context with the bug analysis
+        context = state.get("context", {}).copy()
+        context["architect_analysis"] = bug_analysis_content
+        context["final_bug_analysis_called"] = True
         context["parsed_bug_analysis"] = parsed_bugs
 
-    # Add to messages for continuity
-    messages = [
-        HumanMessage(content=f"[LATS Iteration {state['iteration']}] Analyzing node {selected_id}"),
-        AIMessage(content=architect_response),
-    ]
+        # Update the state with the context
+        updated_state = state.copy()
+        updated_state["context"] = context
+
+        # Directly call expand_node to generate candidates (triggered by final_bug_analysis tool)
+        print("🔧 Calling expand_node directly from final_bug_analysis tool trigger")
+        expand_result = expand_node(updated_state)
+
+        # Return the expand result, effectively bypassing normal graph routing
+        return expand_result
+
+    # If no expand trigger, update context with architect response for handoff detection
+    context = state.get("context", {}).copy()
+    context["architect_analysis"] = architect_response
+    context["final_bug_analysis_called"] = False
 
     return {
-        "messages": messages,
+        "messages": result["messages"],
         "context": context,
     }
 
@@ -1867,6 +1715,7 @@ def build_lats_graph(checkpointer=None):
             "research_internal": "research_internal",
             "research_external": "research_external",
             "expand": "expand",  # Ready to expand with current knowledge
+            "execute": "execute",  # Skip expand if already done in analyze
         },
     )
 
@@ -1916,17 +1765,23 @@ def build_lats_graph(checkpointer=None):
 
 def should_research_more(state: TreeState) -> str:
     """
-    Determine if architect wants more research or is ready to expand.
+    Determine next step after architect analysis.
 
     Priority order:
-    1. If final_bug_analysis tool was called -> expand (ready to implement)
-    2. Look for handoff markers in architect's response:
+    1. If expand already called (candidate_ids present) -> execute (skip expand)
+    2. If final_bug_analysis tool was called -> expand (ready to implement)
+    3. Look for handoff markers in architect's response:
        - [handoff:internal_librarian] -> research_internal
        - [handoff:external_librarian] -> research_external
-    3. No handoff markers -> expand (ready to implement)
 
-    Only the first handoff marker is processed. The architect can only hand off to one librarian per response.
+    The architect MUST either call final_bug_analysis or request research via handoff markers.
+    No default expand fallback is allowed.
     """
+    # Check if expand_node was already called (candidate_ids present in state)
+    if "candidate_ids" in state:
+        print("🔧 Expand already completed in analyze phase - proceeding directly to execute")
+        return "execute"
+
     context = state.get("context", {})
 
     # Check if final_bug_analysis tool was called (highest priority)
@@ -1948,9 +1803,10 @@ def should_research_more(state: TreeState) -> str:
         print(f"🏗️ Architect requesting {first_handoff} research")
         return f"research_{first_handoff}"
     else:
-        # No research handoffs or ready to implement
-        print("🏗️ Architect ready to proceed to expand phase")
-        return "expand"
+        # Architect must either call final_bug_analysis or request research
+        raise ValueError(
+            "Architect failed to call final_bug_analysis tool or request research. The architect must analyze the problem and either call final_bug_analysis with structured bug data or request research from librarians using [handoff:internal_librarian] or [handoff:external_librarian] markers."
+        )
 
 
 def create_checkpointer():
