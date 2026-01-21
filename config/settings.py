@@ -98,15 +98,14 @@ class Settings:
     )
     max_iterations: int = MAX_DEBUG_ITERATIONS
 
-    # GPU memory management settings
-    gpu_memory_reserve_gb: float = 2.0  # Amount of GPU memory to reserve in GB
-    gpu_device: int = 2  # CUDA device ID for memory reservation
-    gpu_memory_enabled: bool = True  # Enable GPU memory reservation
-
     # Test execution settings
     pytest_mock_mode: bool = (
         True  # When True, return fake test output instead of running real pytest
     )
+
+    # GPU device settings for test execution
+    gpu_device: int = 2  # CUDA device ID for test execution
+    cuda_visible_devices: str = "2"  # CUDA_VISIBLE_DEVICES environment variable for tests
 
     @classmethod
     def from_env(cls) -> "Settings":

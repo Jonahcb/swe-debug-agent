@@ -64,7 +64,6 @@ from src.agents.agents import (
 from src.memory import store
 from src.worktree_utils import setup_worktree, cleanup_worktree
 from src.utils.git_manager import WorktreeManager
-from src.utils.gpu_memory_manager import get_gpu_memory_manager
 from src.state import AgentState
 
 # Load LATS prompts from prompts.yaml
@@ -703,18 +702,9 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
     # Prepare test command
     # Run test with subprocess using the configured test command
-    gpu_manager = None
-    if settings.gpu_memory_enabled:
-        gpu_manager = get_gpu_memory_manager(
-            device=settings.gpu_device, reserve_gb=settings.gpu_memory_reserve_gb, persistent=True
-        )
 
     with trace("Test_Execution", "tool", inputs={"node_id": node.id}) as rt:
         try:
-            # Release GPU memory reservation for test execution
-            if gpu_manager and gpu_manager.framework_reservation_active:
-                gpu_manager.prepare_for_test_execution()
-
             sglang_workspace = Path(workspace_dir)
 
             cmd = [
@@ -728,9 +718,8 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
                 "test_lora_hf_sgl_logprob_diff.py",
             ]
 
-            # Set environment to use GPU 2 (matching the TEST_COMMAND configuration)
             test_env = os.environ.copy()
-            test_env["CUDA_VISIBLE_DEVICES"] = "2"
+            test_env["CUDA_VISIBLE_DEVICES"] = settings.cuda_visible_devices
 
             result = subprocess.run(
                 cmd,
@@ -764,10 +753,6 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
             rt.end(outputs={"output": filtered_output[:500], "return_code": return_code})
 
-            # Immediately restore GPU memory reservation after test completion
-            if gpu_manager:
-                gpu_manager.restore_framework_reservation()
-
             return filtered_output, return_code
 
         except subprocess.TimeoutExpired:
@@ -776,20 +761,12 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
             rt.end(outputs={"error": "timeout", "timeout_seconds": TEST_TIMEOUT})
 
-            # Restore GPU memory reservation on timeout
-            if gpu_manager:
-                gpu_manager.restore_framework_reservation()
-
             return timeout_message, -1
         except Exception as e:
             error_message = f"ERROR: Failed to run test: {e}"
             print(f"\n❌ [TEST ERROR] {error_message}")
 
             rt.end(outputs={"error": str(e)})
-
-            # Restore GPU memory reservation on error
-            if gpu_manager:
-                gpu_manager.restore_framework_reservation()
 
             return error_message, -1
 
@@ -2224,21 +2201,6 @@ def main():
 
     # Initialize LangSmith client for trace flushing
     langsmith_client = Client()
-
-    # Initialize persistent GPU memory reservation for framework
-    if settings.gpu_memory_enabled:
-        from src.utils.gpu_memory_manager import initialize_framework_gpu_reservation
-
-        print("🚀 Initializing SWE Debug Agent framework...")
-        gpu_init_success = initialize_framework_gpu_reservation(
-            device=settings.gpu_device, reserve_gb=settings.gpu_memory_reserve_gb
-        )
-        if gpu_init_success:
-            print("✅ Framework GPU memory reservation established")
-        else:
-            print(
-                "⚠️ Framework GPU memory reservation failed - continuing without GPU memory management"
-            )
 
     try:
         if args.resume:
