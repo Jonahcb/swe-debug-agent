@@ -83,7 +83,9 @@ IMPORTANT: As a subagent, you must:
         },
     ]
 
-    agent = create_agent("architect", system_prompt, subagents=architect_subagents)
+    agent = create_agent(
+        "architect", system_prompt, subagents=architect_subagents, tools=ARCHITECT_TOOLS
+    )
 
     # Add context about current debug state
     messages = state.get("messages", [])
