@@ -1052,15 +1052,17 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
     Args:
         bug_analysis: Dictionary containing bug analysis in the format:
             {
-                "bug_1": {
-                    "relevant_files_and_lines": "file.py:123-125, file2.py:456",
-                    "description": "Technical low-level one sentence bug description and potential fixes"
-                },
-                "bug_2": {
-                    "relevant_files_and_lines": "file.py:789, file3.py:101",
-                    "description": "Technical low-level one sentence bug description and potential fixes"
-                },
-                ...
+                "root": {
+                    "bug_1": {
+                        "relevant_files_and_lines": "file.py:123-125, file2.py:456",
+                        "description": "Technical low-level one sentence bug description and potential fixes"
+                    },
+                    "bug_2": {
+                        "relevant_files_and_lines": "file.py:789, file3.py:101",
+                        "description": "Technical low-level one sentence bug description and potential fixes"
+                    },
+                    ...
+                }
             }
 
     Returns:
@@ -1087,7 +1089,7 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
     print(f"✅ Bug analysis validation passed: {len(bugs_dict)} bugs identified")
 
     # Format validation passed
-    bug_count = len(bug_analysis)
+    bug_count = len(bugs_dict)
     print(f"✅ Final bug analysis accepted: {bug_count} bugs identified")
 
     # Return formatted confirmation - this will be used by the LATS agent

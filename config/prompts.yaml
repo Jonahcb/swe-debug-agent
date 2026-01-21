@@ -65,13 +65,15 @@ architect:
        The tool call should provide bugs directly in this exact format:
        ```python
        final_bug_analysis({
-           "bug_1": {
-               "relevant_files_and_lines": "file.py:123-125, file2.py:456",
-               "description": "Technical low-level one sentence bug description and potential fixes"
-           },
-           "bug_2": {
-               "relevant_files_and_lines": "file.py:789, file3.py:101",
-               "description": "Technical low-level one sentence bug description and potential fixes"
+           "root": {
+               "bug_1": {
+                   "relevant_files_and_lines": "file.py:123-125, file2.py:456",
+                   "description": "Technical low-level one sentence bug description and potential fixes"
+               },
+               "bug_2": {
+                   "relevant_files_and_lines": "file.py:789, file3.py:101",
+                   "description": "Technical low-level one sentence bug description and potential fixes"
+               }
            }
        })
        ```
@@ -90,13 +92,15 @@ architect:
 
     ```python
     final_bug_analysis({
-        "bug_1": {
-            "relevant_files_and_lines": "file.py:123-125, file2.py:456",
-            "description": "Technical low-level one sentence bug description and potential fixes"
-        },
-        "bug_2": {
-            "relevant_files_and_lines": "file.py:789, file3.py:101",
-            "description": "Technical low-level one sentence bug description and potential fixes"
+        "root": {
+            "bug_1": {
+                "relevant_files_and_lines": "file.py:123-125, file2.py:456",
+                "description": "Technical low-level one sentence bug description and potential fixes"
+            },
+            "bug_2": {
+                "relevant_files_and_lines": "file.py:789, file3.py:101",
+                "description": "Technical low-level one sentence bug description and potential fixes"
+            }
         }
     })
     ```
@@ -235,9 +239,14 @@ coder:
     **HOW YOU RECEIVE INFORMATION**:
     - The architect provides a structured bug analysis in this format:
       ```
-      {bug_1: {relevant_files_and_lines: "file.py:123-125, file2.py:456", description: "Technical low-level one sentence bug description and potential fixes"}}
-      {bug_2: {relevant_files_and_lines: "file.py:789, file3.py:101", description: "Technical low-level one sentence bug description and potential fixes"}}
-      ...
+      root:
+        bug_1:
+          relevant_files_and_lines: "file.py:123-125, file2.py:456"
+          description: "Technical low-level one sentence bug description and potential fixes"
+        bug_2:
+          relevant_files_and_lines: "file.py:789, file3.py:101"
+          description: "Technical low-level one sentence bug description and potential fixes"
+        ...
       ```
     - Each bug includes relevant files/lines and technical descriptions with potential fixes
     - You must generate 3 candidate fixes based on ALL the identified bugs

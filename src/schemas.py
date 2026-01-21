@@ -9,9 +9,7 @@ SGLang's constrained decoding uses JSON Schema to enforce valid output structure
 improving reliability and reducing parsing errors.
 """
 
-from typing import Optional, Union
-from pydantic import BaseModel, Field, RootModel
-
+from pydantic import BaseModel, Field
 
 # =============================================================================
 # Coding Agent Output Schemas
@@ -85,7 +83,7 @@ class FixValidationResult(BaseModel):
     file_path: str = Field(description="Path to the file checked")
     is_valid: bool = Field(description="Whether the old_string was found in the file")
     message: str = Field(description="Detailed validation message")
-    file_contents: Optional[str] = Field(
+    file_contents: str | None = Field(
         default=None, description="Full file contents when validation fails (for debugging)"
     )
 
@@ -135,12 +133,15 @@ class BugInfo(BaseModel):
     )
 
 
-class FinalBugAnalysisInput(RootModel[dict[str, BugInfo]]):
+class FinalBugAnalysisInput(BaseModel):
     """Input format for the final_bug_analysis tool.
 
     This schema enforces SGLang constrained decoding to ensure the architect
-    provides bug analysis in the exact expected format.
+    provides bug analysis in the exact expected format. Due to SGLang constraints,
+    the output must include a 'root' key containing the bug dictionary.
     """
+
+    root: dict[str, BugInfo] = Field(description="Dictionary mapping bug IDs to bug information")
 
 
 # =============================================================================
