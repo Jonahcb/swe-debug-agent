@@ -2148,12 +2148,6 @@ def main():
         description="LATS: Language Agent Tree Search for SGLang LoRA MoE Bug Fix"
     )
     parser.add_argument(
-        "--workspace",
-        "-w",
-        help="Workspace directory containing the code and tests",
-        default=os.environ.get("SGLANG_DIR", os.getcwd()),
-    )
-    parser.add_argument(
         "--code",
         "-c",
         help="Path to the initial code file to fix",
@@ -2199,7 +2193,6 @@ def main():
         else:
             result = run_lats(
                 initial_code_path=args.code,
-                workspace_dir=args.workspace,
                 thread_id=args.thread_id,
                 max_iterations=args.iterations,
                 num_candidates=args.candidates,

@@ -27,9 +27,6 @@ postgres = [
     "langgraph-checkpoint-postgres>=0.1.0",
 ]
 
-[project.scripts]
-swe-debug = "lats_agent:main"
-lats-debug = "lats_agent:main"
 
 [tool.ruff]
 line-length = 100
