@@ -1170,9 +1170,9 @@ def analyze_with_architect(state: TreeState) -> dict:
             for tool_call in last_msg.tool_calls:
                 if tool_call.get("name") == "final_bug_analysis":
                     final_bug_analysis_called = True
-                    # Extract the bug analysis data from the tool call
+                    # Extract the bug analysis data directly from the tool call args (RootModel provides dict)
                     try:
-                        final_bug_data = tool_call.get("args", {}).get("bug_analysis", {})
+                        final_bug_data = tool_call.get("args", {})
                         print(
                             f"🎯 Architect called final_bug_analysis tool with {len(final_bug_data)} bugs"
                         )

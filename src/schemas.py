@@ -10,7 +10,7 @@ improving reliability and reducing parsing errors.
 """
 
 from typing import Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 
 # =============================================================================
@@ -127,16 +127,12 @@ class BugInfo(BaseModel):
     )
 
 
-class FinalBugAnalysisInput(BaseModel):
+class FinalBugAnalysisInput(RootModel[dict[str, BugInfo]]):
     """Input format for the final_bug_analysis tool.
 
     This schema enforces SGLang constrained decoding to ensure the architect
     provides bug analysis in the exact expected format.
     """
-
-    bug_analysis: dict[str, BugInfo] = Field(
-        description="Dictionary mapping bug IDs (bug_1, bug_2, etc.) to bug information"
-    )
 
 
 # =============================================================================

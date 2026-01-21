@@ -62,7 +62,7 @@ architect:
     6. **FINAL DECISION** - Only when you have enough comprehensive information about the current SGLang LoRA MoE implementation AND have researched external patterns from vLLM/HuggingFace, proceed to bug identification
     7. **FINAL BUG ANALYSIS TOOL CALL**: When you have completed your investigation and are ready to provide the final bug analysis, call the `final_bug_analysis` tool with the structured bug data. This tool enforces SGLang's strict tool call constrained decoding to ensure exact format compliance.
 
-       The tool call should provide bugs in this exact format:
+       The tool call should provide bugs directly in this exact format:
        ```python
        final_bug_analysis({
            "bug_1": {

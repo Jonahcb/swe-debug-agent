@@ -1042,7 +1042,7 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
 
 
 @tool(args_schema=FinalBugAnalysisInput)
-def final_bug_analysis(bug_analysis: dict) -> str:
+def final_bug_analysis(bug_analysis: FinalBugAnalysisInput) -> str:
     """Provide the final bug analysis to transition to the expand/coder phase.
 
     This tool uses SGLang's strict tool call constrained decoding with the
@@ -1068,27 +1068,19 @@ def final_bug_analysis(bug_analysis: dict) -> str:
     """
     print("🎯 [TOOL] final_bug_analysis: Architect providing final bug analysis")
 
-    if not bug_analysis:
+    if not bug_analysis or not bug_analysis.root:
         return "❌ Error: No bug analysis provided"
 
-    # Validate the format
-    if not isinstance(bug_analysis, dict):
-        return "❌ Error: Bug analysis must be a dictionary"
+    # Get the actual bug dict from the RootModel
+    bugs_dict = bug_analysis.root
 
     # Check that all keys start with "bug_"
-    for key in bug_analysis.keys():
+    for key in bugs_dict.keys():
         if not key.startswith("bug_"):
             return f"❌ Error: All bug keys must start with 'bug_', found: {key}"
 
-    # Check that each bug has the required fields
-    required_fields = ["relevant_files_and_lines", "description"]
-    for bug_key, bug_info in bug_analysis.items():
-        if not isinstance(bug_info, dict):
-            return f"❌ Error: Bug {bug_key} must be a dictionary"
-
-        for field in required_fields:
-            if field not in bug_info:
-                return f"❌ Error: Bug {bug_key} missing required field: {field}"
+    # All validation is handled by Pydantic schema, so if we get here, the data is valid
+    print(f"✅ Bug analysis validation passed: {len(bugs_dict)} bugs identified")
 
     # Format validation passed
     bug_count = len(bug_analysis)
@@ -1097,8 +1089,8 @@ def final_bug_analysis(bug_analysis: dict) -> str:
     # Return formatted confirmation - this will be used by the LATS agent
     formatted_analysis = "\n".join(
         [
-            f'{{bug_{key}: {{relevant_files_and_lines: "{info["relevant_files_and_lines"]}", description: "{info["description"]}"}}}}'
-            for key, info in bug_analysis.items()
+            f'{{{key}: {{relevant_files_and_lines: "{info.relevant_files_and_lines}", description: "{info.description}"}}}}'
+            for key, info in bugs_dict.items()
         ]
     )
 
