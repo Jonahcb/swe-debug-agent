@@ -1042,7 +1042,7 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
 
 
 @tool(args_schema=FinalBugAnalysisInput)
-def final_bug_analysis(bug_analysis: FinalBugAnalysisInput) -> str:
+def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) -> str:
     """Provide the final bug analysis to transition to the expand/coder phase.
 
     This tool uses SGLang's strict tool call constrained decoding with the
@@ -1067,6 +1067,10 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput) -> str:
         Confirmation message that the bug analysis has been accepted and will be passed to the coder
     """
     print("🎯 [TOOL] final_bug_analysis: Architect providing final bug analysis")
+
+    # Handle the case where LangChain passes root as a keyword argument
+    if root is not None:
+        bug_analysis = FinalBugAnalysisInput(root=root)
 
     if not bug_analysis or not bug_analysis.root:
         return "❌ Error: No bug analysis provided"
