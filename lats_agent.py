@@ -1106,7 +1106,9 @@ def analyze_with_architect(state: TreeState) -> dict:
     if triggered_bug_data:
         print("🎯 FINAL BUG ANALYSIS TOOL TRIGGERED - IMMEDIATELY TRANSITIONING TO EXPAND PHASE")
         parsed_bugs = triggered_bug_data
-        bug_analysis_content = json.dumps(parsed_bugs, indent=2)
+        # Convert BugInfo objects to dictionaries for JSON serialization
+        serializable_bugs = {key: bug.model_dump() for key, bug in parsed_bugs.items()}
+        bug_analysis_content = json.dumps(serializable_bugs, indent=2)
 
         # Update context with the bug analysis
         context = state.get("context", {}).copy()
