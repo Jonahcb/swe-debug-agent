@@ -624,7 +624,7 @@ def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
     """
     # Extract (file_path, old_string) tuples from the validated FixCheckerInput object
     # The args_schema ensures we receive properly structured input from the LLM
-    fixes_list = [(f.file_path, f.old_string) for f in fixes_input.root]
+    fixes_list = [(f.file_path, f.old_string) for f in fixes_input.fixes]
 
     print(f"🔍 [TOOL] simple_check_fixes_structured: validating {len(fixes_list)} fix tuples")
 
