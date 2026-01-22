@@ -858,18 +858,28 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
             for file_entry in file_entries:
                 # Extract file path (everything before the first colon, if present)
                 if ":" in file_entry:
-                    file_path = file_entry.split(":")[0].strip()
+                    extracted_file_path = file_entry.split(":")[0].strip()
                 else:
-                    file_path = file_entry.strip()
+                    extracted_file_path = file_entry.strip()
 
-                if file_path:  # Only check non-empty file paths
+                if extracted_file_path:  # Only check non-empty file paths
+                    # Store original extracted path for debugging
+                    base_file_path = extracted_file_path
+
                     # Normalize path (remove leading slash if absolute)
-                    if file_path.startswith("/"):
-                        file_path = file_path.lstrip("/")
+                    relative_file_path = extracted_file_path
+                    if relative_file_path.startswith("/"):
+                        relative_file_path = relative_file_path.lstrip("/")
 
-                    full_path = worktree / file_path
+                    full_path = worktree / relative_file_path
                     if not full_path.exists():
-                        missing_files.append(file_path)
+                        print("DEBUG File path validation:")
+                        print(f"  Base file path: '{base_file_path}'")
+                        print(f"  Relative file path: '{relative_file_path}'")
+                        print(f"  Full file path: '{full_path}'")
+                        print(f"  Worktree path: '{worktree}'")
+                        print(f"  File exists check: {full_path.exists()}")
+                        missing_files.append(relative_file_path)
 
     if missing_files:
         missing_files_str = ", ".join(missing_files)
