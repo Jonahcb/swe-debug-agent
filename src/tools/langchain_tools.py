@@ -603,14 +603,14 @@ def _replace_normalized(old_string: str, new_string: str, content: str) -> str:
 
 
 @tool(args_schema=FixCheckerInput)
-def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
+def simple_check_fixes_structured(root) -> dict:
     """Validate that fixes can be applied to files using structured input/output.
 
     This tool uses SGLang constrained decoding for the tool call arguments.
     The args_schema=FixCheckerInput ensures the LLM generates valid FixCheckerInput.
 
     Args:
-        fixes_input: FixCheckerInput object containing the fixes to validate.
+        root: List of FixTuple objects containing the fixes to validate.
 
     Returns:
         Dict with validation results matching FixCheckerOutput schema:
@@ -620,9 +620,16 @@ def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
             "summary": str
         }
     """
-    # Extract (file_path, old_string) tuples from the FixCheckerInput object
+    if not root:
+        return {
+            "all_valid": False,
+            "results": [],
+            "summary": "No fixes provided",
+        }
+
+    # Extract (file_path, old_string) tuples directly from the root list
     # The args_schema ensures we receive properly structured input from the LLM
-    fixes_list = [(f.file_path, f.old_string) for f in fixes_input.root]
+    fixes_list = [(f.file_path, f.old_string) for f in root]
 
     print(f"🔍 [TOOL] simple_check_fixes_structured: validating {len(fixes_list)} fix tuples")
 
