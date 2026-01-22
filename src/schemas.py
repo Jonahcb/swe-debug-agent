@@ -9,7 +9,7 @@ SGLang's constrained decoding uses JSON Schema to enforce valid output structure
 improving reliability and reducing parsing errors.
 """
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field
 
 # =============================================================================
 # Coding Agent Output Schemas
@@ -64,12 +64,14 @@ class FixTuple(BaseModel):
     old_string: str = Field(description="The string that should exist in the file")
 
 
-class FixCheckerInput(RootModel[list[FixTuple]]):
+class FixCheckerInput(BaseModel):
     """Input format for the fix_checker subagent.
 
-    The coder agent must produce a direct list of fix tuples when calling
-    the fix_checker subagent.
+    The coder agent must produce a dictionary with a 'root' key containing
+    the list of fix tuples when calling the fix_checker subagent.
     """
+
+    root: list[FixTuple]
 
 
 class FixValidationResult(BaseModel):
