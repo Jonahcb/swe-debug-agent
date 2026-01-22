@@ -345,15 +345,13 @@ coder:
 
     **STRUCTURED TOOL INPUT FORMAT** (uses SGLang constrained decoding):
     ```json
-    {
-        "fixes_to_validate": [
-            {"file_path": "full/path/to/file1.py", "old_string": "code to find in file1"},
-            {"file_path": "full/path/to/file2.py", "old_string": "code to find in file2"},
-            {"file_path": "full/path/to/file1.py", "old_string": "another code block from file1"},
-            {"file_path": "full/path/to/file3.py", "old_string": "code from file3"},
-            ...
-        ]
-    }
+    [
+        {"file_path": "full/path/to/file1.py", "old_string": "code to find in file1"},
+        {"file_path": "full/path/to/file2.py", "old_string": "code to find in file2"},
+        {"file_path": "full/path/to/file1.py", "old_string": "another code block from file1"},
+        {"file_path": "full/path/to/file3.py", "old_string": "code from file3"},
+        ...
+    ]
     ```
 
     **VALIDATION RULES**:

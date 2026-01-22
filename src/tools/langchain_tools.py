@@ -611,7 +611,7 @@ def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
     that matches the FixCheckerInput JSON schema.
 
     Args:
-        fixes_input: FixCheckerInput object containing the list of fixes to validate.
+        fixes_input: FixCheckerInput object containing the list of fixes to validate directly.
                      SGLang constrains the LLM to generate valid JSON matching this schema.
 
     Returns:
@@ -624,8 +624,7 @@ def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
     """
     # Extract (file_path, old_string) tuples from the validated FixCheckerInput object
     # The args_schema ensures we receive properly structured input from the LLM
-    fixes_to_validate = fixes_input.fixes_to_validate
-    fixes_list = [(f.file_path, f.old_string) for f in fixes_to_validate]
+    fixes_list = [(f.file_path, f.old_string) for f in fixes_input.root]
 
     print(f"🔍 [TOOL] simple_check_fixes_structured: validating {len(fixes_list)} fix tuples")
 
