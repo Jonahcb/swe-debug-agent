@@ -1164,7 +1164,7 @@ def expand_node(state: TreeState) -> dict:
         # Format the parsed bugs into a readable string for the prompt
         architect_analysis = "\n".join(
             [
-                f'{{bug_{bug_key}: {{relevant_files_and_lines: "{bug_info["relevant_files_and_lines"]}", description: "{bug_info["description"]}"}}}}'
+                f'{{bug_{bug_key}: {{relevant_files_and_lines: "{bug_info.relevant_files_and_lines}", description: "{bug_info.description}"}}}}'
                 for bug_key, bug_info in parsed_bug_analysis.items()
             ]
         )
