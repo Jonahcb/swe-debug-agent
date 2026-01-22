@@ -1150,6 +1150,7 @@ def expand_node(state: TreeState) -> dict:
     from src.tools.langchain_tools import get_execute_trigger
 
     triggered_fixes_data = get_execute_trigger()
+    print(f"🔧 [EXPAND] get_execute_trigger() returned: {triggered_fixes_data}")
 
     # If submit_fixes tool triggered execute phase, immediately transition
     if triggered_fixes_data:
@@ -1259,6 +1260,9 @@ def expand_node(state: TreeState) -> dict:
 
         # Return the execute result, effectively bypassing normal graph routing
         return execute_result
+
+    else:
+        print("🔧 [EXPAND] No triggered fixes data found, proceeding with normal expand logic")
 
     # Get num candidates from context
     num_candidates = state.get("context", {}).get("num_candidates", NUM_CANDIDATES)
