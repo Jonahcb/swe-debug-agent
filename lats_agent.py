@@ -1146,6 +1146,76 @@ def expand_node(state: TreeState) -> dict:
     Based on the architect's bug analysis and librarian research, generates
     actual code modifications as candidate nodes using the coder's specialized knowledge.
     """
+    # Check if submit_fixes tool triggered execute phase
+    from src.tools.langchain_tools import get_execute_trigger
+
+    triggered_fixes_data = get_execute_trigger()
+
+    # If submit_fixes tool triggered execute phase, immediately transition
+    if triggered_fixes_data:
+        print("🎯 SUBMIT_FIXES TOOL TRIGGERED - IMMEDIATELY TRANSITIONING TO EXECUTE PHASE")
+        print(f"✅ Received {len(triggered_fixes_data)} candidate fixes from coder agent")
+
+        # Create candidate nodes directly from the submitted fixes
+        candidate_ids = []
+        nodes = dict(state["nodes"])
+        selected_id = state["selected_node_id"]
+        selected = get_node(state, selected_id)
+
+        for i, candidate_data in enumerate(triggered_fixes_data):
+            # Extract all modified files
+            description = candidate_data.description
+            modified_files = candidate_data.modified_files
+
+            # Build code changes from all modified files
+            code_changes = {}
+            for modified_file in modified_files:
+                file_path = modified_file.file_path
+                old_string = modified_file.old_string
+                new_string = modified_file.new_string
+
+                # Only include files with valid changes
+                if file_path and old_string and new_string:
+                    if file_path not in code_changes:
+                        code_changes[file_path] = []
+                    code_changes[file_path].append(
+                        {"old_string": old_string, "new_string": new_string}
+                    )
+
+            # Skip candidates with no valid modified files
+            if not code_changes:
+                continue
+
+            candidate = Node(
+                code_changes=code_changes,
+                parent_id=selected_id,
+                hypothesis=description,
+                depth=selected.depth + 1,
+            )
+
+            # Add to parent's children
+            selected.children_ids.append(candidate.id)
+
+            nodes[candidate.id] = candidate.to_dict()
+            candidate_ids.append(candidate.id)
+
+            print(f"   Created candidate {candidate.id}: {candidate.hypothesis[:60]}...")
+
+        # Update parent node
+        nodes[selected_id] = selected.to_dict()
+
+        # Create state for execute_candidates
+        execute_state = state.copy()
+        execute_state["candidate_ids"] = candidate_ids
+        execute_state["nodes"] = nodes
+
+        # Directly call execute_candidates to test the fixes (triggered by submit_fixes tool)
+        print("⚡ Calling execute_candidates directly from submit_fixes tool trigger")
+        execute_result = execute_candidates(execute_state)
+
+        # Return the execute result, effectively bypassing normal graph routing
+        return execute_result
+
     # Get num candidates from context
     num_candidates = state.get("context", {}).get("num_candidates", NUM_CANDIDATES)
 
@@ -1202,7 +1272,7 @@ If your initial old_string is not unique within the file, you MUST add more line
 Format your response as JSON:
 ```json
 {{
-        "candidates": [
+        "root": [
         {{
             "description": "Brief description of this candidate fix and which bugs it addresses",
             "modified_files": [
@@ -1218,18 +1288,16 @@ Format your response as JSON:
 
 IMPORTANT: For each modified file, provide the EXACT code block to replace (old_string) and what to replace it with (new_string). The old_string must be unique within the file - if it's not unique, add more surrounding lines until it becomes unique. Do not provide full file contents. Do not make any code up or make any assumptions about the code. Do not use any placeholder text. Use the exact real code block from the codebase for old_string. Use the task tool to call the internal_librarian subagent (via the task tool) to get the full content of the file if you need to.
 
-### 🔄 IMMEDIATE FEEDBACK LOOP 🔄
-**VALIDATION REQUIREMENT**: After generating your candidate solutions, you MUST validate them using the `fix_checker` subagent. This subagent call should be your FINAL ANSWER - do not return the JSON directly.
+### 🔄 IMMEDIATE EXECUTION 🔄
+**SUBMISSION REQUIREMENT**: After generating your candidate solutions, you MUST submit them using the `submit_fixes` tool. This tool call should be your FINAL ANSWER - do not return the JSON directly.
 
 **Process**:
 1. Generate all your candidate fixes as JSON (in the full format shown above)
-2. **Extract all modified file blocks** from your candidates into a simplified format: a list of tuples [(file_path, old_string), ...] for ALL code blocks across all candidates
-3. **Call the `fix_checker` subagent ONCE with this simplified list** as your final answer/tool call
-4. The fix_checker subagent will validate all fixes and provide feedback
-5. If validation fails, the system will ask you to revise - then repeat the process
-6. Only return validated solutions that pass the fix_checker validation
+2. **Call the `submit_fixes` tool ONCE with this structured format** as your final answer/tool call
+3. The submit_fixes tool will automatically transition to the execute/critic phase for testing and evaluation
+4. Your fixes will be tested and scored by the critic agent
 
-**IMPORTANT**: Your final output should be a call to the `fix_checker` subagent with the simplified tuple list format, not the full JSON itself.
+**IMPORTANT**: Your final output should be a call to the `submit_fixes` tool with the structured JSON format shown above, not the JSON itself. The submit_fixes tool enforces SGLang's strict tool call constrained decoding to ensure exact format compliance.
 """
 
     # Create a mini-state for the coder agent with plan.md context

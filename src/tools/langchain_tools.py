@@ -7,7 +7,12 @@ from langchain_core.tools import tool
 
 from src.tools.github import GitHubClient
 from src.tools.ruff import lint_file
-from src.schemas import FinalBugAnalysisInput, FixCheckerInput, FixValidationResult
+from src.schemas import (
+    FinalBugAnalysisInput,
+    FixCheckerInput,
+    FixValidationResult,
+    SubmitFixesInput,
+)
 
 
 # =============================================================================
@@ -768,6 +773,25 @@ def get_expand_trigger():
     return data
 
 
+# Global state to trigger execute phase from submit_fixes tool
+_execute_trigger_data = None
+
+
+def trigger_execute_phase(fixes_data):
+    """Set global trigger for execute phase."""
+    global _execute_trigger_data
+    _execute_trigger_data = fixes_data
+    print("🎯 [TOOL] submit_fixes: Execute phase triggered with fixes data")
+
+
+def get_execute_trigger():
+    """Get and clear the execute trigger data."""
+    global _execute_trigger_data
+    data = _execute_trigger_data
+    _execute_trigger_data = None
+    return data
+
+
 @tool(args_schema=FinalBugAnalysisInput)
 def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) -> str:
     """Provide the final bug analysis to transition to the expand/coder phase.
@@ -833,6 +857,69 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
     return f"🎯 FINAL BUG ANALYSIS ACCEPTED - Transitioning to expand/coder phase\n\n{formatted_analysis}"
 
 
+@tool(args_schema=SubmitFixesInput)
+def submit_fixes(fixes: SubmitFixesInput = None, root=None) -> str:
+    """Submit candidate fixes to transition to execute/critic phase.
+
+    This tool uses SGLang's strict tool call constrained decoding with the
+    SubmitFixesInput schema to ensure the coder agent provides candidate fixes
+    in the exact structured format expected by the execute/critic phase.
+
+    Args:
+        fixes: Dictionary containing candidate fixes in the format:
+            {
+                "root": [
+                    {
+                        "description": "Brief description of this candidate fix",
+                        "modified_files": [
+                            {
+                                "file_path": "path/to/file.py",
+                                "old_string": "existing code block to replace",
+                                "new_string": "new code to replace the old_string with"
+                            }
+                        ]
+                    }
+                ]
+            }
+
+    Returns:
+        Confirmation message that the fixes have been accepted and will be passed to execute/critic
+    """
+    print("🎯 [TOOL] submit_fixes: Coder providing final candidate fixes")
+
+    # Handle the case where LangChain passes root as a keyword argument
+    if root is not None:
+        fixes = SubmitFixesInput(root=root)
+
+    if not fixes or not fixes.root:
+        return "❌ Error: No fixes provided"
+
+    # Get the actual fixes list from the RootModel
+    fixes_list = fixes.root
+
+    # All validation is handled by Pydantic schema, so if we get here, the data is valid
+    print(f"✅ Fixes validation passed: {len(fixes_list)} candidate fixes submitted")
+
+    # Format validation passed
+    fixes_count = len(fixes_list)
+    print(f"✅ Candidate fixes accepted: {fixes_count} fixes submitted")
+
+    # TRIGGER EXECUTE PHASE DIRECTLY FROM TOOL
+    trigger_execute_phase(fixes_list)
+
+    # Return formatted confirmation - this will be used by the LATS agent
+    formatted_fixes = "\n".join(
+        [
+            f"Fix {i + 1}: {fix.description} ({len(fix.modified_files)} files)"
+            for i, fix in enumerate(fixes_list)
+        ]
+    )
+
+    return (
+        f"🎯 CANDIDATE FIXES ACCEPTED - Transitioning to execute/critic phase\n\n{formatted_fixes}"
+    )
+
+
 # =============================================================================
 # Tool Collections for Different Agent Roles
 # =============================================================================
@@ -851,6 +938,7 @@ CODER_TOOLS = [
     git_checkout,
     git_rm,
     simple_check_fixes_structured,
+    submit_fixes,
 ]
 
 # Critic: Code review

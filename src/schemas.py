@@ -9,6 +9,7 @@ SGLang's constrained decoding uses JSON Schema to enforce valid output structure
 improving reliability and reducing parsing errors.
 """
 
+from typing import Union
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -81,7 +82,7 @@ class FixValidationResult(BaseModel):
     file_path: str = Field(description="Path to the file checked")
     is_valid: bool = Field(description="Whether the old_string was found in the file")
     message: str = Field(description="Detailed validation message")
-    file_contents: str | None = Field(
+    file_contents: Union[str, None] = Field(
         default=None, description="Full file contents when validation fails (for debugging)"
     )
 
@@ -139,7 +140,22 @@ class FinalBugAnalysisInput(BaseModel):
     the output must include a 'root' key containing the bug dictionary.
     """
 
-    root: dict[str, BugInfo] = Field(description="Dictionary mapping bug IDs to bug information")
+    root: dict[str, BugInfo] = Field(
+        description="Dictionary of bugs identified with keys starting with 'bug_'"
+    )
+
+
+class SubmitFixesInput(BaseModel):
+    """Input format for the submit_fixes tool.
+
+    This schema enforces SGLang constrained decoding to ensure the coder agent
+    provides candidate fixes in the exact expected format. Due to SGLang constraints,
+    the output must include a 'root' key containing the list of candidate fixes.
+    """
+
+    root: list[CandidateFix] = Field(
+        description="List of candidate fixes to submit for execution and evaluation"
+    )
 
 
 # =============================================================================
@@ -164,4 +180,4 @@ CODER_OUTPUT_SCHEMA = get_json_schema(CoderOutput)
 FIX_CHECKER_INPUT_SCHEMA = get_json_schema(FixCheckerInput)
 FIX_CHECKER_OUTPUT_SCHEMA = get_json_schema(FixCheckerOutput)
 SIMPLE_CHECK_FIXES_INPUT_SCHEMA = get_json_schema(SimpleCheckFixesInput)
-FINAL_BUG_ANALYSIS_INPUT_SCHEMA = get_json_schema(FinalBugAnalysisInput)
+SUBMIT_FIXES_INPUT_SCHEMA = get_json_schema(SubmitFixesInput)
