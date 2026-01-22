@@ -105,7 +105,7 @@ class Settings:
 
     # GPU device settings for test execution
     gpu_device: int = 2  # CUDA device ID for test execution
-    cuda_visible_devices: str = "2"  # CUDA_VISIBLE_DEVICES environment variable for tests
+    cuda_visible_devices: str = "4"  # CUDA_VISIBLE_DEVICES environment variable for tests
 
     @classmethod
     def from_env(cls) -> "Settings":
