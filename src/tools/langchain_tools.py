@@ -8,7 +8,7 @@ from langchain_core.tools import tool
 
 from src.tools.github import GitHubClient
 from src.tools.ruff import format_file, lint_file
-from src.schemas import FinalBugAnalysisInput, FixCheckerInput, FixTuple, FixValidationResult
+from src.schemas import FinalBugAnalysisInput, FixCheckerInput, FixValidationResult
 
 from config.settings import settings
 
@@ -966,7 +966,7 @@ def simple_check_fixes(fixes_list: list) -> str:
 
 
 @tool(args_schema=FixCheckerInput)
-def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
+def simple_check_fixes_structured(fixes_input: FixCheckerInput) -> dict:
     """Validate that fixes can be applied to files using structured input/output.
 
     This tool uses SGLang constrained decoding for the tool call arguments.
@@ -974,9 +974,8 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
     that matches the FixCheckerInput JSON schema.
 
     Args:
-        fixes_to_validate: List of FixTuple objects to validate.
-                          Each FixTuple has file_path and old_string fields.
-                          SGLang constrains the LLM to generate valid JSON matching this schema.
+        fixes_input: FixCheckerInput object containing the list of fixes to validate.
+                     SGLang constrains the LLM to generate valid JSON matching this schema.
 
     Returns:
         Dict with validation results matching FixCheckerOutput schema:
@@ -986,24 +985,10 @@ def simple_check_fixes_structured(fixes_to_validate: list[FixTuple]) -> dict:
             "summary": str
         }
     """
-    # Extract (file_path, old_string) tuples from validated FixTuple objects
+    # Extract (file_path, old_string) tuples from the validated FixCheckerInput object
     # The args_schema ensures we receive properly structured input from the LLM
-    try:
-        # Handle both FixTuple objects and dicts (for flexibility)
-        fixes_list = []
-        for f in fixes_to_validate:
-            if isinstance(f, FixTuple):
-                fixes_list.append((f.file_path, f.old_string))
-            elif isinstance(f, dict):
-                fixes_list.append((f["file_path"], f["old_string"]))
-            else:
-                fixes_list.append((f.file_path, f.old_string))
-    except (KeyError, TypeError, AttributeError) as e:
-        return {
-            "all_valid": False,
-            "results": [],
-            "summary": f"Failed to parse input: {e}",
-        }
+    fixes_to_validate = fixes_input.fixes_to_validate
+    fixes_list = [(f.file_path, f.old_string) for f in fixes_to_validate]
 
     print(f"🔍 [TOOL] simple_check_fixes_structured: validating {len(fixes_list)} fix tuples")
 
@@ -1224,6 +1209,7 @@ CODER_TOOLS = [
     git_commit,
     git_checkout,
     git_rm,
+    simple_check_fixes_structured,
 ]
 
 # Critic: Code review
