@@ -803,6 +803,88 @@ def _contains_normalized(needle: str, haystack: str) -> bool:
     return normalized_needle in normalized_haystack
 
 
+def _find_normalized_position(needle: str, haystack: str) -> tuple[int, int] | None:
+    """Find the start and end positions of needle in haystack using normalized matching.
+
+    Args:
+        needle: The string to search for
+        haystack: The string to search in
+
+    Returns:
+        Tuple of (start, end) positions in the original haystack, or None if not found
+    """
+    # First try exact match (fast path)
+    pos = haystack.find(needle)
+    if pos != -1:
+        return pos, pos + len(needle)
+
+    # Normalize both strings
+    normalized_needle = _normalize_whitespace(needle)
+    normalized_haystack = _normalize_whitespace(haystack)
+
+    # Find normalized needle in normalized haystack
+    norm_pos = normalized_haystack.find(normalized_needle)
+    if norm_pos == -1:
+        return None
+
+    # Map back to original positions - this is approximate
+    # Split both into lines and find corresponding positions
+    needle_lines = [line.strip() for line in needle.split("\n") if line.strip()]
+    haystack_lines = [line for line in haystack.split("\n")]
+
+    # Find the sequence of non-empty lines in haystack that match our needle lines
+    needle_line_count = len(needle_lines)
+
+    for i in range(len(haystack_lines) - needle_line_count + 1):
+        # Check if this sequence matches
+        matches = True
+        for j in range(needle_line_count):
+            if haystack_lines[i + j].strip() != needle_lines[j]:
+                matches = False
+                break
+
+        if matches:
+            # Find the actual start and end positions
+            start_line_idx = i
+            end_line_idx = i + needle_line_count - 1
+
+            # Calculate character positions
+            start_pos = sum(len(haystack_lines[k]) + 1 for k in range(start_line_idx))  # +1 for \n
+            end_pos = (
+                start_pos
+                + sum(len(haystack_lines[k]) + 1 for k in range(start_line_idx, end_line_idx + 1))
+                - 1
+            )
+
+            return start_pos, end_pos
+
+    return None
+
+
+def _replace_normalized(old_string: str, new_string: str, content: str) -> str:
+    """Replace old_string with new_string in content using normalized matching.
+
+    Args:
+        old_string: The string to replace
+        new_string: The replacement string
+        content: The content to modify
+
+    Returns:
+        Modified content with replacement, or original content if replacement fails
+    """
+    # First try exact replacement (fast path)
+    if old_string in content:
+        return content.replace(old_string, new_string, 1)
+
+    # Try normalized replacement
+    positions = _find_normalized_position(old_string, content)
+    if positions is None:
+        return content  # No replacement possible
+
+    start_pos, end_pos = positions
+    return content[:start_pos] + new_string + content[end_pos:]
+
+
 @tool
 def simple_check_fixes(fixes_list: list) -> str:
     """Validate that fixes can be applied to files by checking if old_string exists in each file.

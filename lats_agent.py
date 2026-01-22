@@ -62,6 +62,7 @@ from src.agents.agents import (
     external_librarian_node,
 )
 from src.memory import store
+from src.tools.langchain_tools import _replace_normalized
 from src.worktree_utils import setup_worktree, cleanup_worktree
 from src.utils.git_manager import WorktreeManager
 from src.state import AgentState
@@ -541,13 +542,12 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             old_string = change["old_string"]
             new_string = change["new_string"]
 
-            # Find and replace the old_string with new_string
-            if old_string in modified_content:
-                modified_content = modified_content.replace(
-                    old_string, new_string, 1
-                )  # Replace only first occurrence
-            else:
-                # If old_string not found, log warning but continue
+            # Find and replace the old_string with new_string using normalized matching
+            original_content = modified_content
+            modified_content = _replace_normalized(old_string, new_string, modified_content)
+
+            if modified_content == original_content:
+                # If replacement didn't change content, log warning but continue
                 print(
                     f"   ⚠️ Warning: Could not find old_string in {filename}: {old_string[:50]}..."
                 )
@@ -979,9 +979,9 @@ def select_node(state: TreeState) -> dict:
             for change in changes:
                 old_string = change["old_string"]
                 new_string = change["new_string"]
-                if old_string in modified_content:
-                    modified_content = modified_content.replace(old_string, new_string, 1)
-                else:
+                original_content = modified_content
+                modified_content = _replace_normalized(old_string, new_string, modified_content)
+                if modified_content == original_content:
                     print(f"     ⚠️ Warning: Could not find old_string in {filename}")
 
             # Apply the node's changes
