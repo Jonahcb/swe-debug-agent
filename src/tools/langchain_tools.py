@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from pathlib import Path
 
 from langchain_core.tools import tool
 
@@ -838,6 +839,41 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
 
     # All validation is handled by Pydantic schema, so if we get here, the data is valid
     print(f"✅ Bug analysis validation passed: {len(bugs_dict)} bugs identified")
+
+    # Validate file paths exist before proceeding
+    worktree_path = os.environ.get("WORKTREE_REPO_PATH")
+    if not worktree_path:
+        return "❌ Error: WORKTREE_REPO_PATH not set. Cannot validate file paths."
+
+    worktree = Path(worktree_path)
+    missing_files = []
+
+    for bug_key, bug_info in bugs_dict.items():
+        # Extract file paths from relevant_files_and_lines
+        # Format: "file.py:123-125, file2.py:456" -> ["file.py", "file2.py"]
+        relevant_files_str = bug_info.relevant_files_and_lines
+        if relevant_files_str:
+            # Split by comma and extract file paths (before colon)
+            file_entries = [entry.strip() for entry in relevant_files_str.split(",")]
+            for file_entry in file_entries:
+                # Extract file path (everything before the first colon, if present)
+                if ":" in file_entry:
+                    file_path = file_entry.split(":")[0].strip()
+                else:
+                    file_path = file_entry.strip()
+
+                if file_path:  # Only check non-empty file paths
+                    # Normalize path (remove leading slash if absolute)
+                    if file_path.startswith("/"):
+                        file_path = file_path.lstrip("/")
+
+                    full_path = worktree / file_path
+                    if not full_path.exists():
+                        missing_files.append(file_path)
+
+    if missing_files:
+        missing_files_str = ", ".join(missing_files)
+        return f"❌ FILE PATH VALIDATION FAILED: The following file paths do not exist in the worktree:\n{missing_files_str}\n\nPlease revise your bug analysis to reference only existing files."
 
     # Format validation passed
     bug_count = len(bugs_dict)
