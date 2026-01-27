@@ -55,6 +55,9 @@ class RemoveFilesystemPromptMiddleware(AgentMiddleware):
         # Remove filesystem tool prompts from the system message
         if request.system_message and hasattr(request.system_message, "content"):
             content = request.system_message.content
+            # Handle case where content might be a list (from middleware transformations)
+            if isinstance(content, list):
+                content = "".join(str(part) for part in content)
             # Remove the "## Filesystem Tools..." section and everything after it
             filesystem_section_pattern = r"\n\n## Filesystem Tools.*$"
             cleaned_content = re.sub(filesystem_section_pattern, "", content, flags=re.DOTALL)
