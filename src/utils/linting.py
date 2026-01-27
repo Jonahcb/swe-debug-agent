@@ -1,4 +1,4 @@
-git """Linting utilities for validating code changes using sglang pre-commit."""
+"""Linting utilities for validating code changes using sglang pre-commit."""
 
 import subprocess
 import tempfile
