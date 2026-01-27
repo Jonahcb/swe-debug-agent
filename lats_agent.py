@@ -336,6 +336,9 @@ class TreeState(TypedDict):
     # Worktree information
     repo_path: str | None  # Path to the isolated worktree
 
+    # Fix validation state - tracks if simple_check_fixes_structured passed
+    simple_check_fixes_passed: bool
+
 
 # =============================================================================
 # WORKTREE WRAPPER FUNCTIONS
@@ -1161,6 +1164,9 @@ def expand_node(state: TreeState) -> dict:
     Based on the architect's bug analysis and librarian research, generates
     actual code modifications as candidate nodes using the coder's specialized knowledge.
     """
+    # Reset the simple_check_fixes validation state for this expand phase
+    from src.tools.langchain_tools import reset_simple_check_validation
+    reset_simple_check_validation()
     # Check if submit_fixes tool triggered execute phase
     from src.tools.langchain_tools import get_execute_trigger
 
@@ -1962,6 +1968,7 @@ def run_lats(
         },
         "current_agent": "lats",
         "repo_path": None,  # Will be set by setup_worktree
+        "simple_check_fixes_passed": False,  # Initialize as False for each expand phase
     }
 
     # Create checkpointer for persistence

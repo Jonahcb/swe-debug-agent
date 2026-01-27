@@ -741,6 +741,8 @@ def simple_check_fixes_structured(root) -> dict:
 
     if all_valid:
         summary = f"ALL FIXES VALID: {valid_count}/{total_count} fixes can be successfully applied"
+        # Set validation flag when all old_strings are valid
+        set_simple_check_validation_passed(True)
     else:
         summary = f"SOME FIXES INVALID: {valid_count}/{total_count} fixes valid - please revise invalid fixes"
 
@@ -778,6 +780,9 @@ def get_expand_trigger():
 # Global state to trigger execute phase from submit_fixes tool
 _execute_trigger_data = None
 
+# Global state to track simple_check_fixes_structured validation status
+_simple_check_validation_passed = False
+
 
 def trigger_execute_phase(fixes_data):
     """Set global trigger for execute phase."""
@@ -792,6 +797,26 @@ def get_execute_trigger():
     data = _execute_trigger_data
     _execute_trigger_data = None
     return data
+
+
+def set_simple_check_validation_passed(passed: bool):
+    """Set the simple_check_fixes_structured validation status."""
+    global _simple_check_validation_passed
+    _simple_check_validation_passed = passed
+    print(f"🔍 [TOOL] simple_check_fixes_structured validation status set to: {passed}")
+
+
+def get_simple_check_validation_passed() -> bool:
+    """Get the current simple_check_fixes_structured validation status."""
+    global _simple_check_validation_passed
+    return _simple_check_validation_passed
+
+
+def reset_simple_check_validation():
+    """Reset the simple_check_fixes_structured validation status for new expand phase."""
+    global _simple_check_validation_passed
+    _simple_check_validation_passed = False
+    print("🔄 [TOOL] simple_check_fixes_structured validation status reset for new expand phase")
 
 
 @tool(args_schema=FinalBugAnalysisInput)
@@ -980,6 +1005,10 @@ def submit_fixes(fixes: SubmitFixesInput = None, root=None) -> str:
         Confirmation message that the fixes have been accepted and will be passed to execute/critic
     """
     print("🎯 [TOOL] submit_fixes: Coder providing final candidate fixes")
+
+    # Check if simple_check_fixes_structured validation has passed
+    if not get_simple_check_validation_passed():
+        return "ERROR: submit_fixes tool unavailable until `simple_check_fixes_structured` tool returns all old_strings are valid."
 
     try:
         # Handle the case where LangChain passes root as a keyword argument
