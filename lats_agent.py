@@ -800,7 +800,7 @@ def evaluate_candidate_with_critic(
     original_file = (
         list(candidate.code_changes.keys())[0]
         if candidate.code_changes
-        else "python/sglang/srt/lora/layers.py"
+        else None
     )
 
     # Read original code from filesystem if not provided in original_code dict
@@ -1016,7 +1016,7 @@ def run_initial_test(state: TreeState) -> dict:
     """
     print(f"\n🧪 [INITIAL TEST] Running test on root node to get baseline failure")
 
-    workspace_dir = os.environ.get("SGLANG_DIR", "")
+    workspace_dir = state.get("repo_path", "")
     root_id = state["root_id"]
     root = get_node(state, root_id)
 
@@ -1402,7 +1402,7 @@ def execute_candidates(state: TreeState) -> dict:
     """
     Execute tests for all candidate nodes using the test runner agent pattern.
     """
-    workspace_dir = os.environ.get("SGLANG_DIR", "")
+    workspace_dir = state.get("repo_path", "")
 
     print(f"\n⚡ [EXECUTE] Testing {len(state['candidate_ids'])} candidates")
 

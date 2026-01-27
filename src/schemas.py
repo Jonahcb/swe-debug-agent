@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, model_validator
 class ModifiedFile(BaseModel):
     """A single file modification in a candidate fix."""
 
-    file_path: str = Field(description="Full absolute path to the file being modified", min_length=1)
+    file_path: str = Field(description="Relative path to the file being modified (relative to worktree root)", min_length=1)
     old_string: str = Field(
         description="Existing code block to replace, with enough context to be unique",
         min_length=1

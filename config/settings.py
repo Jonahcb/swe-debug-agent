@@ -104,7 +104,6 @@ class Settings:
     )
 
     # GPU device settings for test execution
-    gpu_device: int = 2  # CUDA device ID for test execution
     cuda_visible_devices: str = "4"  # CUDA_VISIBLE_DEVICES environment variable for tests
 
     @classmethod
@@ -114,6 +113,7 @@ class Settings:
             workspace_dir=Path(os.environ.get("WORKSPACE_DIR", Path.cwd())),
             mcp=MCPSettings(),
             agents={name: LLMConfig.from_env(name) for name in AGENT_NAMES},
+            cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES", "4"),
         )
 
     def get_agent_llm(self, agent_name: str) -> LLMConfig:
