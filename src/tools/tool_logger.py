@@ -12,9 +12,9 @@ class ToolLogger:
     def wrap_tool(self, tool) -> Any:
         """Wrap a tool to log all invocations by monkey-patching its methods."""
         # Handle BaseTool objects
-        if hasattr(tool, '_run'):
+        if hasattr(tool, "_run"):
             original_run = tool._run
-            original_arun = getattr(tool, '_arun', None)
+            original_arun = getattr(tool, "_arun", None)
 
             def logged_run(*args, config=None, **kwargs):
                 """Log the tool call and then execute."""
@@ -23,7 +23,7 @@ class ToolLogger:
                 print(f"\n[{timestamp}] 🔧 Tool Call: {tool.name}", file=sys.stderr)
 
                 # Log arguments if any (skip config parameter which is internal)
-                filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'config'}
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k != "config"}
                 if args or filtered_kwargs:
                     if args:
                         print(f"  Args: {args}", file=sys.stderr)
@@ -40,10 +40,16 @@ class ToolLogger:
                     # Calculate duration
                     duration = time.time() - start_time
 
-                    # Log the result (truncate if too long, skip content for github tools)
+                    # Log the result (truncate if too long, skip content for github tools and simple_check_fixes_structured)
                     result_str = str(result)
                     if "github" in tool.name.lower():
-                        print(f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]", file=sys.stderr)
+                        print(
+                            f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]",
+                            file=sys.stderr,
+                        )
+                    elif "simple_check_fixes_structured" in tool.name.lower():
+                        # Don't truncate results from simple_check_fixes_structured as it may contain full file contents
+                        print(f"  ✅ Result ({duration:.2f}s): {result_str}", file=sys.stderr)
                     else:
                         if len(result_str) > 500:
                             result_str = result_str[:500] + "... [truncated]"
@@ -68,7 +74,7 @@ class ToolLogger:
                 print(f"\n[{timestamp}] 🔧 Tool Call: {tool.name}", file=sys.stderr)
 
                 # Log arguments if any (skip config parameter which is internal)
-                filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'config'}
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k != "config"}
                 if args or filtered_kwargs:
                     if args:
                         print(f"  Args: {args}", file=sys.stderr)
@@ -85,10 +91,16 @@ class ToolLogger:
                     # Calculate duration
                     duration = time.time() - start_time
 
-                    # Log the result (truncate if too long, skip content for github tools)
+                    # Log the result (truncate if too long, skip content for github tools and simple_check_fixes_structured)
                     result_str = str(result)
                     if "github" in tool.name.lower():
-                        print(f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]", file=sys.stderr)
+                        print(
+                            f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]",
+                            file=sys.stderr,
+                        )
+                    elif "simple_check_fixes_structured" in tool.name.lower():
+                        # Don't truncate results from simple_check_fixes_structured as it may contain full file contents
+                        print(f"  ✅ Result ({duration:.2f}s): {result_str}", file=sys.stderr)
                     else:
                         if len(result_str) > 500:
                             result_str = result_str[:500] + "... [truncated]"
@@ -116,7 +128,7 @@ class ToolLogger:
                 """Log the function call and then execute."""
                 # Log the function call start
                 timestamp = time.strftime("%H:%M:%S", time.localtime())
-                func_name = getattr(original_func, '__name__', str(original_func))
+                func_name = getattr(original_func, "__name__", str(original_func))
                 print(f"\n[{timestamp}] 🔧 Function Call: {func_name}", file=sys.stderr)
 
                 # Log arguments
@@ -136,11 +148,17 @@ class ToolLogger:
                     # Calculate duration
                     duration = time.time() - start_time
 
-                    # Log the result (truncate if too long, skip content for github tools)
+                    # Log the result (truncate if too long, skip content for github tools and simple_check_fixes_structured)
                     result_str = str(result)
-                    func_name = getattr(original_func, '__name__', str(original_func))
+                    func_name = getattr(original_func, "__name__", str(original_func))
                     if "github" in func_name.lower():
-                        print(f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]", file=sys.stderr)
+                        print(
+                            f"  ✅ Result ({duration:.2f}s): [GitHub content - not displayed]",
+                            file=sys.stderr,
+                        )
+                    elif "simple_check_fixes_structured" in func_name.lower():
+                        # Don't truncate results from simple_check_fixes_structured as it may contain full file contents
+                        print(f"  ✅ Result ({duration:.2f}s): {result_str}", file=sys.stderr)
                     else:
                         if len(result_str) > 500:
                             result_str = result_str[:500] + "... [truncated]"

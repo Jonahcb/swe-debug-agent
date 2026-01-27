@@ -193,12 +193,14 @@ class Node:
 # =============================================================================
 
 
-def create_trim_messages_reducer(max_tokens: int = 28000):
+def create_trim_messages_reducer(max_tokens: int = None):
     """Factory function to create a message trimming reducer with the correct signature.
 
     LangGraph requires reducers to have signature (a, b) -> c, so we use a closure
     to capture the max_tokens parameter.
     """
+    if max_tokens is None:
+        max_tokens = int(os.getenv("MAX_TOKENS", "65536"))
 
     def trim_messages_reducer(existing_messages: list, new_messages: list) -> list:
         """Custom message reducer that trims messages to stay under token limit.
@@ -211,6 +213,17 @@ def create_trim_messages_reducer(max_tokens: int = 28000):
 
         # Check if we need to trim
         should_trim = False
+        has_file_content_tool = False
+
+        # Check if there are recent tool messages with file content that should not be truncated
+        for msg in all_messages[-5:]:  # Check last 5 messages
+            if hasattr(msg, 'tool_call_id') and hasattr(msg, 'content'):
+                # This is a tool message
+                content_str = str(msg.content)
+                if 'simple_check_fixes_structured' in content_str and 'file_contents' in content_str:
+                    has_file_content_tool = True
+                    break
+
         if all_messages and len(all_messages) > 10:  # Only trim if we have many messages
             try:
                 # Quick check: estimate tokens (rough approximation: ~4 chars per token)
@@ -218,16 +231,20 @@ def create_trim_messages_reducer(max_tokens: int = 28000):
                     len(str(msg.content)) for msg in all_messages if hasattr(msg, "content")
                 )
                 estimated_tokens = estimated_chars // 4
-                should_trim = estimated_tokens > max_tokens * 0.8  # Trim when 80% of limit reached
+
+                should_trim = estimated_tokens > max_tokens  # Trim when limit is exceeded
             except:
                 should_trim = len(all_messages) > 20  # Fallback: trim if too many messages
 
         if should_trim:
             try:
+                # Use the configured token limit
+                effective_max_tokens = max_tokens
+
                 # Use approximate token counting for speed
                 trimmed = trim_messages(
                     all_messages,
-                    max_tokens=max_tokens,
+                    max_tokens=effective_max_tokens,
                     token_counter="approximate",  # Fast approximate counting
                     strategy="last",  # Keep most recent messages
                     start_on="human",  # Ensure conversation starts with human message
@@ -256,23 +273,39 @@ def create_trim_messages_reducer(max_tokens: int = 28000):
     return trim_messages_reducer
 
 
-def trim_messages_if_needed(messages: list, max_tokens: int = 28000) -> list:
+def trim_messages_if_needed(messages: list, max_tokens: int = None) -> list:
     """Trim messages if they're approaching the token limit.
 
     Returns trimmed messages with context awareness warning if trimming occurred.
     """
+    if max_tokens is None:
+        max_tokens = int(os.getenv("MAX_TOKENS", "65536"))
+
     if not messages or len(messages) < 10:
         return messages
+
+    # Check if there are recent tool messages with file content
+    has_file_content_tool = False
+    for msg in messages[-5:]:  # Check last 5 messages
+        if hasattr(msg, 'tool_call_id') and hasattr(msg, 'content'):
+            # This is a tool message
+            content_str = str(msg.content)
+            if 'simple_check_fixes_structured' in content_str and 'file_contents' in content_str:
+                has_file_content_tool = True
+                break
 
     try:
         # Estimate tokens (rough approximation: ~4 chars per token)
         estimated_chars = sum(len(str(msg.content)) for msg in messages if hasattr(msg, "content"))
         estimated_tokens = estimated_chars // 4
 
-        if estimated_tokens > max_tokens * 0.8:  # Trim when 80% of limit reached
+        if estimated_tokens > max_tokens:  # Trim when limit is exceeded
+            # Use the configured token limit
+            effective_max_tokens = max_tokens
+
             trimmed = trim_messages(
                 messages,
-                max_tokens=max_tokens,
+                max_tokens=effective_max_tokens,
                 token_counter="approximate",
                 strategy="last",
                 start_on="human",
