@@ -783,10 +783,13 @@ def simple_check_fixes_structured(root) -> dict:
                 if not success:
                     # Update the corresponding result with linting errors
                     results[fix_index].is_valid = False
-                    error_messages = []
-                    for error in errors:
-                        error_messages.append(f"{error.code}: {error.message} (line {error.line})")
-                    linting_message = f"Linting failed: {'; '.join(error_messages)}"
+
+                    # Use the raw pre-commit output from LintError objects
+                    if errors:
+                        linting_message = f"Linting failed: {errors[0].message}"
+                    else:
+                        linting_message = "Linting failed: Pre-commit checks failed"
+
                     if results[fix_index].message:
                         results[fix_index].message += f" | {linting_message}"
                     else:

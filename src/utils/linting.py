@@ -1,4 +1,4 @@
-"""Linting utilities for validating code changes using sglang pre-commit."""
+git """Linting utilities for validating code changes using sglang pre-commit."""
 
 import subprocess
 import tempfile
@@ -65,53 +65,21 @@ class CodeLinter:
             # Pre-commit returns 0 for success, non-zero for failure
             success = result.returncode == 0
 
-            # Parse output to extract errors
+            # For failed pre-commit runs, return the full output as a single error
             errors = []
-            output_lines = result.stdout.split('\n') + result.stderr.split('\n')
+            combined_output = result.stdout
+            if result.stderr:
+                combined_output += "\nSTDERR:\n" + result.stderr
 
-            # Look for failed checks in the output
-            current_file = None
-            for line in output_lines:
-                line = line.strip()
-                if not line:
-                    continue
-
-                # Try to identify file paths and error messages
-                if line.startswith(('Failed', 'Error', 'SyntaxError')) or 'error' in line.lower():
-                    if current_file:
-                        errors.append(LintError(
-                            file_path=current_file,
-                            line=1,  # We don't have line info from pre-commit output
-                            column=1,
-                            code="PRECOMMIT001",
-                            message=line,
-                            severity="error"
-                        ))
-                    else:
-                        # General error not associated with a specific file
-                        errors.append(LintError(
-                            file_path=file_path or repo_path,
-                            line=1,
-                            column=1,
-                            code="PRECOMMIT002",
-                            message=line,
-                            severity="error"
-                        ))
-
-            # If no specific errors were parsed but command failed, create a general error
-            if not success and not errors:
+            if not success:
                 errors.append(LintError(
                     file_path=file_path or repo_path,
                     line=1,
                     column=1,
-                    code="PRECOMMIT003",
-                    message="Pre-commit checks failed",
+                    code="PRECOMMIT001",
+                    message=f"Pre-commit failed:\n{combined_output}",
                     severity="error"
                 ))
-
-            combined_output = result.stdout
-            if result.stderr:
-                combined_output += "\nSTDERR:\n" + result.stderr
 
             return LintResult(success=success, errors=errors, output=combined_output)
 
