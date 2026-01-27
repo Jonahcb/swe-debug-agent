@@ -1059,7 +1059,7 @@ def submit_fixes(fixes: SubmitFixesInput = None, root=None) -> str:
 
     # Check if simple_check_fixes_structured validation has passed
     if not get_simple_check_validation_passed():
-        return "ERROR: submit_fixes tool unavailable until `simple_check_fixes_structured` tool returns all old_strings are valid."
+        return "ERROR: submit_fixes tool unavailable until `simple_check_fixes_structured` tool returns all old_strings are valid and all fixes pass the linting checks."
 
     try:
         # Handle the case where LangChain passes root as a keyword argument

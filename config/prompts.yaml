@@ -285,7 +285,7 @@ coder:
     - Use the task tool to launch external_librarian subagent - Research vLLM and HuggingFace LoRA/MoE patterns, documentation, code, and best practices
 
     **FINAL SUBMISSION FORMAT** (SGLang Constrained Decoding Enabled):
-    When you have completed generating and validating your candidate fixes, you MUST call the `submit_fixes` tool with the following structured format. You CANNOT call the `submit_fixes` tool until your call to the `simple_check_fixes_structured` tool returns all old_strings are valid.
+    When you have completed generating and validating your candidate fixes, you MUST call the `submit_fixes` tool with the following structured format. You CANNOT call the `submit_fixes` tool until your call to the `simple_check_fixes_structured` tool returns all old_strings are valid and all fixes pass the linting checks.
     This format is enforced by SGLang's constrained decoding - your tool call MUST be valid JSON matching this schema:
 
     ```json
