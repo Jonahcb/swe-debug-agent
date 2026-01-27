@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 
 from src.tools.github import GitHubClient
 from src.tools.ruff import lint_file
+from src.utils.linting import create_linter, CodeLinter
 from src.schemas import (
     BugInfo,
     FinalBugAnalysisInput,
@@ -740,9 +741,59 @@ def simple_check_fixes_structured(root) -> dict:
     total_count = len(results)
 
     if all_valid:
-        summary = f"ALL FIXES VALID: {valid_count}/{total_count} fixes can be successfully applied"
-        # Set validation flag when all old_strings are valid
-        set_simple_check_validation_passed(True)
+        # Basic validations passed - now run linters on each candidate fix
+        print(f"🔍 [TOOL] simple_check_fixes_structured: Running linters on {len(fixes_list)} fixes")
+
+        # Get worktree path for linting
+        worktree_path = os.getenv("WORKTREE_REPO_PATH")
+        if not worktree_path:
+            summary = f"BASIC VALIDATION FAILED: No worktree path configured for linting"
+            return {
+                "all_valid": False,
+                "results": [r.model_dump() for r in results],
+                "summary": summary,
+            }
+
+        # Create linter instance
+        linter = create_linter()
+
+        # Prepare fixes for linting (need new_string, so we need to extract from root)
+        fixes_with_new_strings = []
+        for i, fix_tuple in enumerate(root):
+            fixes_with_new_strings.append((
+                fix_tuple.file_path,
+                fix_tuple.old_string,
+                fix_tuple.new_string
+            ))
+
+        # Run linting on each fix independently
+        lint_results = linter.validate_multiple_fixes(worktree_path, fixes_with_new_strings)
+
+        # Check if all linting passed
+        linting_passed = all(success for success, _, _ in lint_results.values())
+
+        if linting_passed:
+            summary = f"ALL FIXES VALID: {valid_count}/{total_count} fixes can be successfully applied and pass linting"
+            # Set validation flag when both basic validation and linting pass
+            set_simple_check_validation_passed(True)
+        else:
+            # Linting failed - update results with linting errors
+            all_valid = False
+            for fix_index, (success, errors, output) in lint_results.items():
+                if not success:
+                    # Update the corresponding result with linting errors
+                    results[fix_index].is_valid = False
+                    error_messages = []
+                    for error in errors:
+                        error_messages.append(f"{error.code}: {error.message} (line {error.line})")
+                    linting_message = f"Linting failed: {'; '.join(error_messages)}"
+                    if results[fix_index].message:
+                        results[fix_index].message += f" | {linting_message}"
+                    else:
+                        results[fix_index].message = linting_message
+
+            valid_count = sum(1 for r in results if r.is_valid)
+            summary = f"SOME FIXES INVALID: {valid_count}/{total_count} fixes valid - linting failed for some fixes"
     else:
         summary = f"SOME FIXES INVALID: {valid_count}/{total_count} fixes valid - please revise invalid fixes"
 

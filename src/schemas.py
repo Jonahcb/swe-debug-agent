@@ -78,10 +78,11 @@ class CoderOutput(BaseModel):
 
 
 class FixTuple(BaseModel):
-    """A single fix to validate - file path and old string pair."""
+    """A single fix to validate - file path, old string, and new string."""
 
     file_path: str = Field(description="Path to the file to check")
     old_string: str = Field(description="The string that should exist in the file")
+    new_string: str = Field(description="The new string to replace the old_string with")
 
 
 class FixCheckerInput(BaseModel):
