@@ -466,6 +466,100 @@ def ruff_lint(path: str, fix: bool = False) -> str:
 
 
 # =============================================================================
+# Library Validation Tools
+# =============================================================================
+
+
+def run_python_validation(script: str, timeout: int = 30) -> str:
+    """Run a Python script for library validation purposes.
+
+    This tool allows executing Python scripts to validate library usage and functionality,
+    but prevents any environment-changing operations like pip installs.
+
+    Args:
+        script: Python code to execute
+        timeout: Maximum execution time in seconds (default: 30)
+
+    Returns:
+        Output from the script execution or error message
+    """
+    import tempfile
+    import os
+
+    print(f"🔍 [TOOL] run_python_validation: executing script (timeout={timeout}s)")
+
+    # Security: Block dangerous imports and operations
+    dangerous_patterns = [
+        "import pip", "from pip", "pip.", "pip(",
+        "import subprocess", "from subprocess", "subprocess.",
+        "import os", "from os", "os.system", "os.popen", "os.exec",
+        "import sys", "from sys", "sys.exit",
+        "__import__", "eval(", "exec(",
+        "import shutil", "from shutil",
+        "import urllib", "from urllib",
+        "import requests", "from requests",
+        "import wget", "from wget",
+        "import git", "from git",
+    ]
+
+    # Check for dangerous patterns
+    script_lower = script.lower()
+    for pattern in dangerous_patterns:
+        if pattern.lower() in script_lower:
+            return f"❌ SECURITY ERROR: Script contains forbidden operation '{pattern}'. Only library import and usage validation is allowed."
+
+    # Additional check for pip-related commands in strings
+    if "pip install" in script_lower or "pip freeze" in script_lower or "pip list" in script_lower:
+        return "❌ SECURITY ERROR: pip commands are not allowed. Only library usage validation permitted."
+
+    try:
+        # Create a temporary file for the script
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+            temp_file.write(script)
+            temp_file_path = temp_file.name
+
+        try:
+            # Execute the script
+            result = subprocess.run(
+                ["python", temp_file_path],
+                cwd=os.getcwd(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+
+            # Format output
+            output_lines = []
+            if result.stdout:
+                output_lines.append("STDOUT:")
+                output_lines.extend(result.stdout.strip().split("\n"))
+            if result.stderr:
+                output_lines.append("STDERR:")
+                output_lines.extend(result.stderr.strip().split("\n"))
+
+            if result.returncode == 0:
+                output_lines.insert(0, "✅ Script executed successfully")
+            else:
+                output_lines.insert(0, f"❌ Script failed with exit code {result.returncode}")
+
+            return "\n".join(output_lines)
+
+        except subprocess.TimeoutExpired:
+            return f"❌ Script execution timed out after {timeout} seconds"
+        except FileNotFoundError:
+            return "❌ Python interpreter not found"
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+
+    except Exception as e:
+        return f"❌ Error executing script: {e}"
+
+
+# =============================================================================
 # Fix Validation Tools
 # =============================================================================
 
@@ -808,6 +902,27 @@ def simple_check_fixes_structured(root) -> dict:
 
 
 # =============================================================================
+# Library Validation Tool
+# =============================================================================
+
+
+@tool
+def run_python_validation_tool(script: str) -> str:
+    """Execute a Python script to validate library usage and functionality.
+
+    This tool allows running Python code to test library imports, basic functionality,
+    and usage patterns. It prevents any environment modifications like package installation.
+
+    Args:
+        script: Python code to execute for validation purposes
+
+    Returns:
+        Execution results or security error if forbidden operations are detected
+    """
+    return run_python_validation(script)
+
+
+# =============================================================================
 # Final Bug Analysis Tool
 # =============================================================================
 
@@ -1146,6 +1261,7 @@ CODER_TOOLS = [
     git_rm,
     simple_check_fixes_structured,
     submit_fixes,
+    run_python_validation_tool,
 ]
 
 # Critic: Code review
@@ -1172,4 +1288,9 @@ EXTERNAL_LIBRARIAN_TOOLS = [
     github_get_issue,
     github_get_file,
     github_list_repo_files,
+]
+
+# Library Validation Subagent: Python script execution for library validation
+LIBRARY_VALIDATION_TOOLS = [
+    run_python_validation_tool,
 ]

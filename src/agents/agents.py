@@ -14,6 +14,7 @@ from src.tools.langchain_tools import (
     CRITIC_TOOLS,
     EXTERNAL_LIBRARIAN_TOOLS,
     INTERNAL_LIBRARIAN_TOOLS,
+    LIBRARY_VALIDATION_TOOLS,
 )
 
 # Load prompts from YAML file
@@ -299,6 +300,22 @@ IMPORTANT: As a subagent, you must:
 - Report back to your parent Coder agent with your research findings
 - Do not attempt to coordinate other agents or make implementation decisions yourself""",
             "tools": EXTERNAL_LIBRARIAN_TOOLS,  # Same tools as external librarian
+        },
+        {
+            "name": "library_validator",
+            "description": "Library validation subagent for ensuring correct usage of external libraries through Python script execution",
+            "system_prompt": f"""You are a subagent of the Coder agent, specialized in validating external library usage through controlled Python script execution.
+
+{PROMPTS["library_validator"]["system"]}
+
+IMPORTANT: As a subagent, you must:
+- Focus on validating that external libraries are used correctly in the codebase
+- Execute Python scripts to test library imports, functionality, and usage patterns
+- Ensure that library usage follows best practices and correct APIs
+- Report back to your parent Coder agent with validation findings
+- Do not attempt to install packages, modify the environment, or make implementation decisions yourself
+- Only use the provided run_python_validation_tool to execute safe Python scripts""",
+            "tools": LIBRARY_VALIDATION_TOOLS,  # Tools for library validation
         },
     ]
 
