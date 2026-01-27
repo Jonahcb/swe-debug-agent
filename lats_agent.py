@@ -484,7 +484,7 @@ def filter_lora_test_output(output: str) -> str:
             return output[start_idx:next_newline]
 
 
-def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
+def run_and_test_code(node: Node, workspace_dir: str, pythonpath: str = "") -> tuple[str, int]:
     """
     Execute test with the code snapshot from the given node.
 
@@ -727,6 +727,8 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
             test_env = os.environ.copy()
             test_env["CUDA_VISIBLE_DEVICES"] = settings.cuda_visible_devices
+            if pythonpath:
+                test_env["PYTHONPATH"] = pythonpath
 
             print(f"   🧪 Running test in directory: {str(workspace.resolve())}")
             print(f"   🧪 Test command: {' '.join(cmd)}")
@@ -1030,9 +1032,12 @@ def run_initial_test(state: TreeState) -> dict:
     root_id = state["root_id"]
     root = get_node(state, root_id)
 
+    # Get PYTHONPATH from context
+    pythonpath = state.get("context", {}).get("worktree_pythonpath", "")
+
     # Run test on root node
     print(f"   Running initial test on root node {root_id}...")
-    test_output, return_code = run_and_test_code(root, workspace_dir)
+    test_output, return_code = run_and_test_code(root, workspace_dir, pythonpath)
 
     # Update root node with test results
     root.test_output = test_output
@@ -1414,6 +1419,9 @@ def execute_candidates(state: TreeState) -> dict:
     """
     workspace_dir = state.get("repo_path", "")
 
+    # Get PYTHONPATH from context
+    pythonpath = state.get("context", {}).get("worktree_pythonpath", "")
+
     print(f"\n⚡ [EXECUTE] Testing {len(state['candidate_ids'])} candidates")
 
     nodes = dict(state["nodes"])
@@ -1429,7 +1437,7 @@ def execute_candidates(state: TreeState) -> dict:
 
         # Run test using our guardrailed tool
         print(f"   Testing candidate {candidate_id}...")
-        test_output, return_code = run_and_test_code(candidate, workspace_dir)
+        test_output, return_code = run_and_test_code(candidate, workspace_dir, pythonpath)
 
         # Update candidate with test results
         candidate.test_output = test_output

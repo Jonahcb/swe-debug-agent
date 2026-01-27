@@ -1,7 +1,6 @@
 """Shared worktree utilities for both LATS and other agent systems."""
 
 import os
-import subprocess
 
 from src.state import AgentState
 from src.utils.git_manager import WorktreeManager
@@ -23,48 +22,27 @@ def setup_worktree(state: AgentState) -> dict:
 
     print(f"🏁 Worktree setup complete: {repo_path}")
 
-    # Install sglang in editable mode in the worktree
-    print("📦 Installing sglang in editable mode...")
+    # Set up PYTHONPATH for the worktree
+    print("🐍 Setting up PYTHONPATH for worktree...")
     python_dir = os.path.join(repo_path, "python")
 
     if os.path.exists(python_dir):
-        try:
-            # 1. Move to the python package root in the worktree
-            print(f"   📂 Changing to python directory: {python_dir}")
+        print(f"   📂 Adding to PYTHONPATH: {python_dir}")
 
-            # 2. Uninstall the incorrect version
-            print("   🗑️ Uninstalling existing sglang package...")
-            subprocess.run(
-                ["pip", "uninstall", "sglang", "-y"],
-                cwd=python_dir,
-                check=False,  # Don't fail if package isn't installed
-                capture_output=True,
-                text=True
-            )
+        # Get current PYTHONPATH or empty string if not set
+        current_pythonpath = os.environ.get("PYTHONPATH", "")
+        if current_pythonpath:
+            new_pythonpath = f"{python_dir}:{current_pythonpath}"
+        else:
+            new_pythonpath = python_dir
 
-            # 3. Install the current directory in editable mode
-            print("   🔧 Installing sglang in editable mode...")
-            result = subprocess.run(
-                ["pip", "install", "-e", "."],
-                cwd=python_dir,
-                check=True,
-                capture_output=True,
-                text=True
-            )
+        # Update environment variable
+        os.environ["PYTHONPATH"] = new_pythonpath
 
-            print("   ✅ SGLang installed successfully in editable mode")
-            if result.stdout:
-                print(f"   📄 Install output: {result.stdout.strip()}")
-
-        except subprocess.CalledProcessError as e:
-            print(f"   ❌ Failed to install sglang: {e}")
-            if e.stdout:
-                print(f"   📄 stdout: {e.stdout}")
-            if e.stderr:
-                print(f"   📄 stderr: {e.stderr}")
-            raise
+        print(f"   ✅ PYTHONPATH set to: {new_pythonpath}")
     else:
         print(f"   ⚠️ Warning: Python directory not found at {python_dir}")
+        new_pythonpath = os.environ.get("PYTHONPATH", "")
 
     return {
         "repo_path": repo_path,
@@ -74,6 +52,7 @@ def setup_worktree(state: AgentState) -> dict:
             # Store only the paths needed for cleanup
             "worktree_base_repo": os.environ.get("SGLANG_DIR", ""),
             "worktree_worktrees_dir": os.environ.get("WORKTREES_DIR", ""),
+            "worktree_pythonpath": new_pythonpath,
         },
     }
 
