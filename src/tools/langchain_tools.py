@@ -9,6 +9,7 @@ from langchain_core.tools import tool
 from src.tools.github import GitHubClient
 from src.tools.ruff import lint_file
 from src.schemas import (
+    BugInfo,
     FinalBugAnalysisInput,
     FixCheckerInput,
     FixValidationResult,
@@ -840,13 +841,16 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
     # All validation is handled by Pydantic schema, so if we get here, the data is valid
     print(f"✅ Bug analysis validation passed: {len(bugs_dict)} bugs identified")
 
-    # Validate file paths exist before proceeding
+    # Validate and resolve file paths using PathResolver
     worktree_path = os.environ.get("WORKTREE_REPO_PATH")
     if not worktree_path:
         return "❌ Error: WORKTREE_REPO_PATH not set. Cannot validate file paths."
 
-    worktree = Path(worktree_path)
-    missing_files = []
+    from src.utils.path_resolver import PathResolver
+    resolver = PathResolver(worktree_path)
+
+    unresolved_files = []
+    resolved_paths = {}
 
     for bug_key, bug_info in bugs_dict.items():
         # Extract file paths from relevant_files_and_lines
@@ -863,40 +867,84 @@ def final_bug_analysis(bug_analysis: FinalBugAnalysisInput = None, root=None) ->
                     extracted_file_path = file_entry.strip()
 
                 if extracted_file_path:  # Only check non-empty file paths
-                    # Store original extracted path for debugging
-                    base_file_path = extracted_file_path
+                    # Try to resolve the path using PathResolver
+                    result = resolver.resolve_path(extracted_file_path)
 
-                    # Normalize path (remove leading slash if absolute)
-                    relative_file_path = extracted_file_path
-                    if relative_file_path.startswith("/"):
-                        relative_file_path = relative_file_path.lstrip("/")
+                    if result['resolved_path']:
+                        # Path resolved successfully - use the resolved path
+                        resolved_paths[extracted_file_path] = result['resolved_path']
+                        print(f"✅ Path resolved: '{extracted_file_path}' -> '{result['resolved_path']}'")
+                    elif result['candidates']:
+                        # Multiple candidates - use the first (best) candidate
+                        best_candidate = result['candidates'][0]
+                        resolved_paths[extracted_file_path] = best_candidate
+                        print(f"⚠️  Path partially resolved: '{extracted_file_path}' -> '{best_candidate}' ({result['strategy']})")
+                    else:
+                        # No resolution possible
+                        unresolved_files.append(extracted_file_path)
+                        print(f"❌ Path unresolvable: '{extracted_file_path}' ({result['strategy']})")
 
-                    full_path = worktree / relative_file_path
-                    if not full_path.exists():
-                        print("DEBUG File path validation:")
-                        print(f"  Base file path: '{base_file_path}'")
-                        print(f"  Relative file path: '{relative_file_path}'")
-                        print(f"  Full file path: '{full_path}'")
-                        print(f"  Worktree path: '{worktree}'")
-                        print(f"  File exists check: {full_path.exists()}")
-                        missing_files.append(relative_file_path)
+    # Check if resolved paths actually exist
+    missing_files = []
+    for original_path, resolved_path in resolved_paths.items():
+        full_path = Path(worktree_path) / resolved_path
+        if not full_path.exists():
+            missing_files.append(resolved_path)
 
-    if missing_files:
-        missing_files_str = ", ".join(missing_files)
-        return f"❌ FILE PATH VALIDATION FAILED: The following file paths do not exist in the worktree:\n{missing_files_str}\n\nPlease revise your bug analysis to reference only existing files."
+    if unresolved_files or missing_files:
+        error_msg = "❌ FILE PATH VALIDATION FAILED:\n"
+        if unresolved_files:
+            error_msg += f"Unresolvable file paths: {', '.join(unresolved_files)}\n"
+        if missing_files:
+            error_msg += f"Resolved paths that don't exist: {', '.join(missing_files)}\n"
+        error_msg += "\nPlease revise your bug analysis to reference valid file paths."
+        return error_msg
+
+    # Update bugs_dict with resolved file paths before proceeding
+    updated_bugs_dict = {}
+    for bug_key, bug_info in bugs_dict.items():
+        relevant_files_str = bug_info.relevant_files_and_lines
+        if relevant_files_str:
+            # Replace original paths with resolved paths in the relevant_files_and_lines string
+            updated_files_str = relevant_files_str
+            file_entries = [entry.strip() for entry in relevant_files_str.split(",")]
+            for file_entry in file_entries:
+                # Extract file path (everything before the first colon, if present)
+                if ":" in file_entry:
+                    extracted_file_path = file_entry.split(":")[0].strip()
+                    line_info = file_entry.split(":", 1)[1]  # Everything after first colon
+                else:
+                    extracted_file_path = file_entry.strip()
+                    line_info = ""
+
+                if extracted_file_path in resolved_paths:
+                    resolved_path = resolved_paths[extracted_file_path]
+                    # Replace the original path with resolved path in the string
+                    if line_info:
+                        updated_files_str = updated_files_str.replace(f"{extracted_file_path}:{line_info}", f"{resolved_path}:{line_info}")
+                    else:
+                        updated_files_str = updated_files_str.replace(extracted_file_path, resolved_path)
+
+            # Create updated bug info with resolved paths
+            updated_bugs_dict[bug_key] = BugInfo(
+                relevant_files_and_lines=updated_files_str,
+                description=bug_info.description
+            )
+        else:
+            updated_bugs_dict[bug_key] = bug_info
 
     # Format validation passed
-    bug_count = len(bugs_dict)
+    bug_count = len(updated_bugs_dict)
     print(f"✅ Final bug analysis accepted: {bug_count} bugs identified")
 
     # TRIGGER EXPAND PHASE DIRECTLY FROM TOOL
-    trigger_expand_phase(bugs_dict)
+    trigger_expand_phase(updated_bugs_dict)
 
     # Return formatted confirmation - this will be used by the LATS agent
     formatted_analysis = "\n".join(
         [
             f'{{{key}: {{relevant_files_and_lines: "{info.relevant_files_and_lines}", description: "{info.description}"}}}}'
-            for key, info in bugs_dict.items()
+            for key, info in updated_bugs_dict.items()
         ]
     )
 
