@@ -126,6 +126,10 @@ class CodeLinter:
                 # No linters enabled
                 return LintResult(success=True, errors=[], output="No linters enabled")
 
+            # Log the pre-commit execution details
+            print(f"🔍 [LINTING] Running pre-commit on repository path: {repo_path}")
+            print(f"🔍 [LINTING] Full pre-commit command: {' '.join(cmd)}")
+
             result = subprocess.run(
                 cmd,
                 cwd=repo_path,
