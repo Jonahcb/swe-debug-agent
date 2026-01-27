@@ -836,7 +836,7 @@ def evaluate_candidate_with_critic(
     critic_prompt = PROMPTS["critic"]["reflection_prompt"].format(
         original_code=original_code_display,
         proposed_code=modified_files_info,
-        test_output=candidate.test_output[:2000] if candidate.test_output else "No test output",
+        test_output=candidate.test_output if candidate.test_output else "No test output",
         score=0.0,  # First evaluation, no previous score
     )
 
