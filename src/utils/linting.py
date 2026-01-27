@@ -56,43 +56,7 @@ class CodeLinter:
         else:
             self.linter_config = linter_config
 
-        # Build pre-commit command based on enabled linters
-        self.pre_commit_cmd = self._build_pre_commit_command()
 
-    def _build_pre_commit_command(self) -> List[str]:
-        """Build the pre-commit command based on enabled linters."""
-        enabled_linters = [name for name, enabled in self.linter_config.items() if enabled]
-
-        # If no linters are enabled, return empty command
-        if not enabled_linters:
-            return []
-
-        # Map linter names to pre-commit hook IDs
-        hook_mapping = {
-            'ast': ['python-check-ast'],
-            'ruff': ['ruff', 'ruff-format'],
-            'black': ['black'],
-            'mypy': ['mypy'],
-            'flake8': ['flake8'],
-            'isort': ['isort']
-        }
-
-        # Collect all hook IDs for enabled linters
-        hook_ids = []
-        for linter in enabled_linters:
-            if linter in hook_mapping:
-                hook_ids.extend(hook_mapping[linter])
-
-        # If we have specific hooks, run only those
-        if hook_ids:
-            cmd = ["pre-commit", "run"]
-            for hook_id in hook_ids:
-                cmd.extend(["--hook-id", hook_id])
-            cmd.append("--all-files")
-            return cmd
-        else:
-            # Fallback to all files if no matching hooks
-            return ["pre-commit", "run", "--all-files"]
 
     def enable_linter(self, linter_name: str, enabled: bool = True):
         """Enable or disable a specific linter.
@@ -103,7 +67,6 @@ class CodeLinter:
         """
         if linter_name in self.linter_config:
             self.linter_config[linter_name] = enabled
-            self.pre_commit_cmd = self._build_pre_commit_command()
 
     def get_enabled_linters(self) -> List[str]:
         """Get list of currently enabled linters."""
@@ -120,44 +83,70 @@ class CodeLinter:
             LintResult with pre-commit check results
         """
         try:
-            # Build the command based on current configuration
-            cmd = self._build_pre_commit_command()
-            if not cmd:
+            # Get the hook IDs based on current configuration
+            enabled_linters = [name for name, enabled in self.linter_config.items() if enabled]
+            if not enabled_linters:
                 # No linters enabled
                 return LintResult(success=True, errors=[], output="No linters enabled")
 
+            # Map linter names to pre-commit hook IDs
+            hook_mapping = {
+                'ast': ['check-ast'],
+                'ruff': ['ruff'],
+                'black': ['black'],
+                'mypy': ['mypy'],
+                'flake8': ['flake8'],
+                'isort': ['isort']
+            }
+
+            # Collect all hook IDs for enabled linters
+            hook_ids = []
+            for linter in enabled_linters:
+                if linter in hook_mapping:
+                    hook_ids.extend(hook_mapping[linter])
+
+            if not hook_ids:
+                return LintResult(success=True, errors=[], output="No matching hooks found")
+
             # Log the pre-commit execution details
             print(f"🔍 [LINTING] Running pre-commit on repository path: {repo_path}")
-            print(f"🔍 [LINTING] Full pre-commit command: {' '.join(cmd)}")
+            commands = []
+            for hook_id in hook_ids:
+                commands.append(f"pre-commit run {hook_id} --all-files")
+            print(f"🔍 [LINTING] Commands: {'; '.join(commands)}")
 
-            result = subprocess.run(
-                cmd,
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=120  # Longer timeout for pre-commit as it may run multiple tools
-            )
+            # Run each command separately and collect results
+            all_success = True
+            combined_output = ""
+            all_errors = []
 
-            # Pre-commit returns 0 for success, non-zero for failure
-            success = result.returncode == 0
+            for hook_id in hook_ids:
+                cmd = ["pre-commit", "run", hook_id, "--all-files"]
+                result = subprocess.run(
+                    cmd,
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120  # Longer timeout for pre-commit as it may run multiple tools
+                )
 
-            # For failed pre-commit runs, return the full output as a single error
-            errors = []
-            combined_output = result.stdout
-            if result.stderr:
-                combined_output += "\nSTDERR:\n" + result.stderr
+                combined_output += f"\n--- {hook_id} ---\n"
+                combined_output += result.stdout
+                if result.stderr:
+                    combined_output += "\nSTDERR:\n" + result.stderr
 
-            if not success:
-                errors.append(LintError(
-                    file_path=file_path or repo_path,
-                    line=1,
-                    column=1,
-                    code="PRECOMMIT001",
-                    message=f"Pre-commit failed:\n{combined_output}",
-                    severity="error"
-                ))
+                if result.returncode != 0:
+                    all_success = False
+                    all_errors.append(LintError(
+                        file_path=file_path or repo_path,
+                        line=1,
+                        column=1,
+                        code=f"PRECOMMIT_{hook_id.upper()}",
+                        message=f"Pre-commit {hook_id} failed:\n{result.stdout + result.stderr}",
+                        severity="error"
+                    ))
 
-            return LintResult(success=success, errors=errors, output=combined_output)
+            return LintResult(success=all_success, errors=all_errors, output=combined_output.strip())
 
         except subprocess.TimeoutExpired:
             return LintResult(
