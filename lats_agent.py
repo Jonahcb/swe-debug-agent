@@ -1368,96 +1368,105 @@ IMPORTANT: For each modified file, provide the EXACT code block to replace (old_
         print(f"   ⚠️ Error generating fixes with coder agent: {e}")
         response = ""
 
-    # Extract candidates from response
-    candidates = []
-    if response:
-        # Parse JSON response
-        try:
-            json_match = re.search(r"```json\s*(.*?)\s*```", response, re.DOTALL)
-            if json_match:
-                candidates_data = json.loads(json_match.group(1))
-                candidates = candidates_data.get("candidates", [])
-            else:
-                # Try direct JSON parse - strip whitespace and extract JSON object
-                stripped_response = response.strip()
-                # Look for JSON object start/end
-                if stripped_response.startswith("{") and stripped_response.endswith("}"):
-                    candidates_data = json.loads(stripped_response)
-                    candidates = candidates_data.get("candidates", [])
-                else:
-                    # Try to extract JSON from mixed content
-                    json_start = stripped_response.find("{")
-                    json_end = stripped_response.rfind("}") + 1
-                    if json_start >= 0 and json_end > json_start:
-                        json_content = stripped_response[json_start:json_end]
-                        candidates_data = json.loads(json_content)
-                        candidates = candidates_data.get("candidates", [])
-        except json.JSONDecodeError as e:
-            print(f"   ⚠️ Could not parse JSON response ({e}), extracting code blocks...")
-            # Fallback: extract any code blocks and assign to a reasonable default file
-            # For fallback, we assume the code block is new_string and create a minimal old_string
-            code_blocks = re.findall(r"```python\s*(.*?)\s*```", response, re.DOTALL)
-            for i, code in enumerate(code_blocks[:num_candidates]):
-                candidates.append(
-                    {
-                        "description": f"Fix attempt {i + 1}",
-                        "modified_files": [
-                            {
-                                "file_path": "python/sglang/srt/lora/layers.py",  # Default fallback file
-                                "old_string": "# TODO: Replace this placeholder with the actual code to modify",  # Placeholder old_string
-                                "new_string": code,
-                            }
-                        ],
-                    }
+
+    # Check again for submit_fixes trigger after coder agent call
+    triggered_fixes_data = get_execute_trigger()
+    if triggered_fixes_data:
+        print("🎯 SUBMIT_FIXES TOOL TRIGGERED AFTER CODER CALL - PROCESSING FIXES")
+        # Create candidate nodes directly from the submitted fixes
+        candidate_ids = []
+        nodes = dict(state["nodes"])
+        selected_id = state["selected_node_id"]
+        selected = get_node(state, selected_id)
+
+        for i, candidate_data in enumerate(triggered_fixes_data):
+            # Extract all modified files
+            description = candidate_data.description
+            modified_files = candidate_data.modified_files
+
+            print(f"   DEBUG: Candidate {i + 1} - description: '{description}'")
+            print(f"   DEBUG: Candidate {i + 1} - modified_files count: {len(modified_files)}")
+
+            # Build code changes from all modified files
+            code_changes = {}
+            valid_modifications = 0
+
+            for j, modified_file in enumerate(modified_files):
+                file_path = modified_file.file_path
+                old_string = modified_file.old_string
+                new_string = modified_file.new_string
+
+                print(f"   DEBUG: File modification {j + 1}:")
+                print(
+                    f"     - file_path: '{file_path}' (length: {len(file_path) if file_path else 0})"
                 )
+                print(f"     - old_string length: {len(old_string) if old_string else 0}")
+                print(f"     - new_string length: {len(new_string) if new_string else 0}")
 
-    # Create candidate nodes
-    candidate_ids = []
-    nodes = dict(state["nodes"])
+                # Check each validation condition and collect reasons
+                reasons = []
+                if not file_path:
+                    reasons.append("missing file_path")
+                elif file_path.strip() == "":
+                    reasons.append("empty file_path")
+                if not old_string:
+                    reasons.append("missing old_string")
+                elif old_string.strip() == "":
+                    reasons.append("empty old_string")
+                if not new_string:
+                    reasons.append("missing new_string")
 
-    for i, candidate_data in enumerate(candidates[:num_candidates]):
-        # Extract all modified files
-        description = candidate_data.get("description", f"Candidate fix {i + 1}")
-        modified_files = candidate_data.get("modified_files", [])
+                # Only include valid modifications
+                if not reasons:
+                    valid_modifications += 1
+                    if file_path not in code_changes:
+                        code_changes[file_path] = []
+                    code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
+                    print(f"     ✅ Valid modification added")
+                else:
+                    print(f"     ❌ Invalid modification: {', '.join(reasons)}")
 
-        # Build code changes from all modified files
-        code_changes = {}
-        for modified_file in modified_files:
-            file_path = modified_file.get("file_path", "")
-            old_string = modified_file.get("old_string", "")
-            new_string = modified_file.get("new_string", "")
+            # Skip candidates with no valid modified files
+            if not code_changes:
+                print(f"   Skipping candidate {i + 1} - no valid modifications")
+                continue
 
-            # Only include files with valid changes
-            if file_path and old_string and new_string:
-                if file_path not in code_changes:
-                    code_changes[file_path] = []
-                code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
+            print(f"   ✅ Candidate {i + 1} valid with {valid_modifications} modifications across {len(code_changes)} files")
 
-        # Skip candidates with no valid modified files
-        if not code_changes:
-            continue
+            candidate = Node(
+                code_changes=code_changes,
+                parent_id=selected_id,
+                hypothesis=description,
+                depth=selected.depth + 1,
+            )
 
-        candidate = Node(
-            code_changes=code_changes,
-            parent_id=selected_id,
-            hypothesis=description,
-            depth=selected.depth + 1,
-        )
+            # Add to parent's children
+            selected.children_ids.append(candidate.id)
 
-        # Add to parent's children
-        selected.children_ids.append(candidate.id)
+            nodes[candidate.id] = candidate.to_dict()
+            candidate_ids.append(candidate.id)
 
-        nodes[candidate.id] = candidate.to_dict()
-        candidate_ids.append(candidate.id)
+            print(f"   Created candidate {candidate.id}: {candidate.hypothesis[:60]}...")
 
-        print(f"   Created candidate {candidate.id}: {candidate.hypothesis[:60]}...")
+        # Update parent node
+        nodes[selected_id] = selected.to_dict()
 
-    # Update parent node
-    nodes[selected_id] = selected.to_dict()
+        # Create state for execute_candidates
+        execute_state = state.copy()
+        execute_state["candidate_ids"] = candidate_ids
+        execute_state["nodes"] = nodes
 
+        # Directly call execute_candidates to test the fixes (triggered by submit_fixes tool)
+        print("⚡ Calling execute_candidates directly from submit_fixes tool trigger")
+        execute_result = execute_candidates(execute_state)
+
+        # Return the execute result, effectively bypassing normal graph routing
+        return execute_result
+
+    # If no trigger found after coder call, return empty results
     return {
-        "candidate_ids": candidate_ids,
-        "nodes": nodes,
+        "candidate_ids": [],
+        "nodes": state["nodes"],
     }
 
 
