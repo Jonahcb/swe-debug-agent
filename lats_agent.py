@@ -521,6 +521,9 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             filename = filename.lstrip("/")
 
         filepath = workspace / filename
+        full_path = str(filepath.resolve())
+
+        print(f"   📝 Modifying file: {full_path}")
 
         # Ensure parent directory exists
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -542,6 +545,9 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
             old_string = change["old_string"]
             new_string = change["new_string"]
 
+            print(f"      Old string: {repr(old_string)}")
+            print(f"      New string: {repr(new_string)}")
+
             # Find and replace the old_string with new_string using normalized matching
             original_content = modified_content
             modified_content = _replace_normalized(old_string, new_string, modified_content)
@@ -554,6 +560,7 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
         # Write modified content
         filepath.write_text(modified_content)
+        print(f"   ✅ File written to disk: {full_path}")
         modified_files.append(filepath)
 
     # Store modified files for potential restoration
@@ -720,6 +727,9 @@ def run_and_test_code(node: Node, workspace_dir: str) -> tuple[str, int]:
 
             test_env = os.environ.copy()
             test_env["CUDA_VISIBLE_DEVICES"] = settings.cuda_visible_devices
+
+            print(f"   🧪 Running test in directory: {str(workspace.resolve())}")
+            print(f"   🧪 Test command: {' '.join(cmd)}")
 
             result = subprocess.run(
                 cmd,
