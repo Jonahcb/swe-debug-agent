@@ -1,5 +1,4 @@
 """Linting utilities for validating code changes using sglang pre-commit."""
-
 import subprocess
 import tempfile
 import os
@@ -30,16 +29,85 @@ class LintResult:
 class CodeLinter:
     """Utility class for linting Python code using sglang pre-commit hooks."""
 
-    def __init__(self, pre_commit_cmd: Optional[List[str]] = None):
+    def __init__(self, linter_config: Optional[Dict[str, bool]] = None):
         """Initialize the linter.
 
         Args:
-            pre_commit_cmd: Command to run for linting. Defaults to sglang pre-commit command.
+            linter_config: Dictionary mapping linter names to enable/disable flags.
+                          Each linter name maps to actual pre-commit hooks:
+                          - 'ast' -> python-check-ast hook
+                          - 'ruff' -> ruff, ruff-format hooks
+                          - 'black' -> black hook
+                          - 'mypy' -> mypy hook
+                          - 'flake8' -> flake8 hook
+                          - 'isort' -> isort hook
+                          If None, defaults to only 'ast' and 'ruff' enabled.
         """
-        if pre_commit_cmd is None:
-            self.pre_commit_cmd = ["pre-commit", "run", "--all-files"]
+        if linter_config is None:
+            # Default: only AST and ruff
+            self.linter_config = {
+                'ast': True,
+                'ruff': True,
+                'black': False,
+                'mypy': False,
+                'flake8': False,
+                'isort': False
+            }
         else:
-            self.pre_commit_cmd = pre_commit_cmd
+            self.linter_config = linter_config
+
+        # Build pre-commit command based on enabled linters
+        self.pre_commit_cmd = self._build_pre_commit_command()
+
+    def _build_pre_commit_command(self) -> List[str]:
+        """Build the pre-commit command based on enabled linters."""
+        enabled_linters = [name for name, enabled in self.linter_config.items() if enabled]
+
+        # If no linters are enabled, return empty command
+        if not enabled_linters:
+            return []
+
+        # Map linter names to pre-commit hook IDs
+        hook_mapping = {
+            'ast': ['python-check-ast'],
+            'ruff': ['ruff', 'ruff-format'],
+            'black': ['black'],
+            'mypy': ['mypy'],
+            'flake8': ['flake8'],
+            'isort': ['isort']
+        }
+
+        # Collect all hook IDs for enabled linters
+        hook_ids = []
+        for linter in enabled_linters:
+            if linter in hook_mapping:
+                hook_ids.extend(hook_mapping[linter])
+
+        # If we have specific hooks, run only those
+        if hook_ids:
+            cmd = ["pre-commit", "run"]
+            for hook_id in hook_ids:
+                cmd.extend(["--hook-id", hook_id])
+            cmd.append("--all-files")
+            return cmd
+        else:
+            # Fallback to all files if no matching hooks
+            return ["pre-commit", "run", "--all-files"]
+
+    def enable_linter(self, linter_name: str, enabled: bool = True):
+        """Enable or disable a specific linter.
+
+        Args:
+            linter_name: Name of the linter ('ast', 'ruff', 'black', 'mypy', 'flake8', 'isort')
+            enabled: Whether to enable the linter
+        """
+        if linter_name in self.linter_config:
+            self.linter_config[linter_name] = enabled
+            self.pre_commit_cmd = self._build_pre_commit_command()
+
+    def get_enabled_linters(self) -> List[str]:
+        """Get list of currently enabled linters."""
+        return [name for name, enabled in self.linter_config.items() if enabled]
 
     def run_sglang_pre_commit(self, repo_path: str, file_path: Optional[str] = None) -> LintResult:
         """Run sglang pre-commit checks on the repository.
@@ -52,8 +120,12 @@ class CodeLinter:
             LintResult with pre-commit check results
         """
         try:
-            # Run pre-commit command
-            cmd = self.pre_commit_cmd.copy()
+            # Build the command based on current configuration
+            cmd = self._build_pre_commit_command()
+            if not cmd:
+                # No linters enabled
+                return LintResult(success=True, errors=[], output="No linters enabled")
+
             result = subprocess.run(
                 cmd,
                 cwd=repo_path,
@@ -109,6 +181,7 @@ class CodeLinter:
                 )],
                 output=str(e)
             )
+
 
     def validate_fix_with_linters(
         self,
@@ -215,10 +288,28 @@ class CodeLinter:
         return results
 
 
-def create_linter(pre_commit_cmd: Optional[List[str]] = None) -> CodeLinter:
+def create_linter(linter_config: Optional[Dict[str, bool]] = None) -> CodeLinter:
     """Factory function to create a CodeLinter instance.
 
     Args:
-        pre_commit_cmd: Optional custom pre-commit command. Defaults to sglang pre-commit.
+        linter_config: Optional dictionary mapping linter names to enable/disable flags.
+                      Each name corresponds to pre-commit hooks:
+                      - 'ast' -> python-check-ast hook
+                      - 'ruff' -> ruff, ruff-format hooks
+                      - 'black' -> black hook
+                      - 'mypy' -> mypy hook
+                      - 'flake8' -> flake8 hook
+                      - 'isort' -> isort hook
+                      Defaults to only 'ast' and 'ruff' enabled.
+
+    Examples:
+        # Default (AST + ruff pre-commit hooks)
+        linter = create_linter()
+
+        # Custom configuration
+        linter = create_linter({'ast': True, 'ruff': True, 'black': True})
+
+        # Only AST checks
+        linter = create_linter({'ast': True})
     """
-    return CodeLinter(pre_commit_cmd)
+    return CodeLinter(linter_config)
