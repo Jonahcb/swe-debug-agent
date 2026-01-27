@@ -1164,59 +1164,22 @@ def expand_node(state: TreeState) -> dict:
         selected = get_node(state, selected_id)
 
         for i, candidate_data in enumerate(triggered_fixes_data):
-            # Extract all modified files
+            # Extract all modified files (already validated by submit_fixes)
             description = candidate_data.description
             modified_files = candidate_data.modified_files
 
-            print(f"   DEBUG: Candidate {i + 1} - description: '{description}'")
-            print(f"   DEBUG: Candidate {i + 1} - modified_files count: {len(modified_files)}")
+            print(f"   Candidate {i + 1}: {description} ({len(modified_files)} files)")
 
-            # Build code changes from all modified files
+            # Build code changes from all modified files (validation already done)
             code_changes = {}
-            valid_modifications = 0
-
-            for j, modified_file in enumerate(modified_files):
+            for modified_file in modified_files:
                 file_path = modified_file.file_path
                 old_string = modified_file.old_string
                 new_string = modified_file.new_string
 
-                print(f"   DEBUG: File modification {j + 1}:")
-                print(
-                    f"     - file_path: '{file_path}' (length: {len(file_path) if file_path else 0})"
-                )
-                print(f"     - old_string length: {len(old_string) if old_string else 0}")
-                print(f"     - new_string length: {len(new_string) if new_string else 0}")
-
-                # Check each validation condition and collect reasons
-                reasons = []
-                if not file_path:
-                    reasons.append("missing file_path")
-                elif file_path.strip() == "":
-                    reasons.append("empty file_path")
-                if not old_string:
-                    reasons.append("missing old_string")
-                elif old_string.strip() == "":
-                    reasons.append("empty old_string")
-                if not new_string:
-                    reasons.append("missing new_string")
-                elif new_string.strip() == "":
-                    reasons.append("empty new_string")
-
-                if not reasons:
-                    # Valid modification
-                    if file_path not in code_changes:
-                        code_changes[file_path] = []
-                    code_changes[file_path].append(
-                        {"old_string": old_string, "new_string": new_string}
-                    )
-                    valid_modifications += 1
-                    print(f"     ✓ VALID modification")
-                else:
-                    print(f"     ✗ INVALID modification - reasons: {', '.join(reasons)}")
-
-            print(
-                f"   DEBUG: Candidate {i + 1} - valid modifications: {valid_modifications}, total code_changes: {len(code_changes)}"
-            )
+                if file_path not in code_changes:
+                    code_changes[file_path] = []
+                code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
 
             # Skip candidates with no valid modified files
             if not code_changes:
@@ -1380,58 +1343,22 @@ IMPORTANT: For each modified file, provide the EXACT code block to replace (old_
         selected = get_node(state, selected_id)
 
         for i, candidate_data in enumerate(triggered_fixes_data):
-            # Extract all modified files
+            # Extract all modified files (already validated by submit_fixes)
             description = candidate_data.description
             modified_files = candidate_data.modified_files
 
-            print(f"   DEBUG: Candidate {i + 1} - description: '{description}'")
-            print(f"   DEBUG: Candidate {i + 1} - modified_files count: {len(modified_files)}")
+            print(f"   Candidate {i + 1}: {description} ({len(modified_files)} files)")
 
-            # Build code changes from all modified files
+            # Build code changes from all modified files (validation already done)
             code_changes = {}
-            valid_modifications = 0
-
-            for j, modified_file in enumerate(modified_files):
+            for modified_file in modified_files:
                 file_path = modified_file.file_path
                 old_string = modified_file.old_string
                 new_string = modified_file.new_string
 
-                print(f"   DEBUG: File modification {j + 1}:")
-                print(
-                    f"     - file_path: '{file_path}' (length: {len(file_path) if file_path else 0})"
-                )
-                print(f"     - old_string length: {len(old_string) if old_string else 0}")
-                print(f"     - new_string length: {len(new_string) if new_string else 0}")
-
-                # Check each validation condition and collect reasons
-                reasons = []
-                if not file_path:
-                    reasons.append("missing file_path")
-                elif file_path.strip() == "":
-                    reasons.append("empty file_path")
-                if not old_string:
-                    reasons.append("missing old_string")
-                elif old_string.strip() == "":
-                    reasons.append("empty old_string")
-                if not new_string:
-                    reasons.append("missing new_string")
-
-                # Only include valid modifications
-                if not reasons:
-                    valid_modifications += 1
-                    if file_path not in code_changes:
-                        code_changes[file_path] = []
-                    code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
-                    print(f"     ✅ Valid modification added")
-                else:
-                    print(f"     ❌ Invalid modification: {', '.join(reasons)}")
-
-            # Skip candidates with no valid modified files
-            if not code_changes:
-                print(f"   Skipping candidate {i + 1} - no valid modifications")
-                continue
-
-            print(f"   ✅ Candidate {i + 1} valid with {valid_modifications} modifications across {len(code_changes)} files")
+                if file_path not in code_changes:
+                    code_changes[file_path] = []
+                code_changes[file_path].append({"old_string": old_string, "new_string": new_string})
 
             candidate = Node(
                 code_changes=code_changes,

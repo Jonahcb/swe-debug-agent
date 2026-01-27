@@ -10,7 +10,7 @@ improving reliability and reducing parsing errors.
 """
 
 from typing import Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # =============================================================================
 # Coding Agent Output Schemas
@@ -20,11 +20,30 @@ from pydantic import BaseModel, Field
 class ModifiedFile(BaseModel):
     """A single file modification in a candidate fix."""
 
-    file_path: str = Field(description="Full absolute path to the file being modified")
+    file_path: str = Field(description="Full absolute path to the file being modified", min_length=1)
     old_string: str = Field(
-        description="Existing code block to replace, with enough context to be unique"
+        description="Existing code block to replace, with enough context to be unique",
+        min_length=1
     )
     new_string: str = Field(description="New code to replace the old_string with")
+
+    @model_validator(mode='after')
+    def validate_file_modification(self) -> 'ModifiedFile':
+        """Validate that the file modification is complete and valid."""
+        reasons = []
+
+        if not self.file_path or self.file_path.strip() == "":
+            reasons.append("missing or empty file_path")
+
+        if not self.old_string or self.old_string.strip() == "":
+            reasons.append("missing or empty old_string")
+
+        # new_string can be empty (for deletions), so no validation needed
+
+        if reasons:
+            raise ValueError(f"Invalid file modification: {', '.join(reasons)}")
+
+        return self
 
 
 class CandidateFix(BaseModel):

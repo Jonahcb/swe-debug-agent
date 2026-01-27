@@ -981,37 +981,67 @@ def submit_fixes(fixes: SubmitFixesInput = None, root=None) -> str:
     """
     print("🎯 [TOOL] submit_fixes: Coder providing final candidate fixes")
 
-    # Handle the case where LangChain passes root as a keyword argument
-    if root is not None:
-        fixes = SubmitFixesInput(root=root)
+    try:
+        # Handle the case where LangChain passes root as a keyword argument
+        if root is not None:
+            fixes = SubmitFixesInput(root=root)
 
-    if not fixes or not fixes.root:
-        return "❌ Error: No fixes provided"
+        if not fixes or not fixes.root:
+            return "❌ Error: No fixes provided"
 
-    # Get the actual fixes list from the RootModel
-    fixes_list = fixes.root
+        # Get the actual fixes list from the RootModel
+        fixes_list = fixes.root
 
-    # All validation is handled by Pydantic schema, so if we get here, the data is valid
-    print(f"✅ Fixes validation passed: {len(fixes_list)} candidate fixes submitted")
+        # Validate each candidate fix has valid modifications
+        valid_candidates = []
+        for i, candidate in enumerate(fixes_list):
+            valid_modifications = []
+            invalid_count = 0
 
-    # Format validation passed
-    fixes_count = len(fixes_list)
-    print(f"✅ Candidate fixes accepted: {fixes_count} fixes submitted")
+            for j, mod_file in enumerate(candidate.modified_files):
+                try:
+                    # The Pydantic validation will happen here
+                    # If validation passes, add to valid modifications
+                    valid_modifications.append(mod_file)
+                    print(f"   ✅ Candidate {i + 1}, File {j + 1}: Valid modification")
+                except ValueError as e:
+                    print(f"   ❌ Candidate {i + 1}, File {j + 1}: {e}")
+                    invalid_count += 1
 
-    # TRIGGER EXECUTE PHASE DIRECTLY FROM TOOL
-    trigger_execute_phase(fixes_list)
+            # Only include candidates with at least one valid modification
+            if valid_modifications:
+                # Create a new candidate with only valid modifications
+                valid_candidate = candidate.model_copy()
+                valid_candidate.modified_files = valid_modifications
+                valid_candidates.append(valid_candidate)
+                print(f"   ✅ Candidate {i + 1}: {len(valid_modifications)} valid modifications")
+            else:
+                print(f"   ❌ Candidate {i + 1}: No valid modifications, skipping")
 
-    # Return formatted confirmation - this will be used by the LATS agent
-    formatted_fixes = "\n".join(
-        [
-            f"Fix {i + 1}: {fix.description} ({len(fix.modified_files)} files)"
-            for i, fix in enumerate(fixes_list)
-        ]
-    )
+        if not valid_candidates:
+            return "❌ Error: No valid candidate fixes provided. All candidates had invalid or missing file modifications."
 
-    return (
-        f"🎯 CANDIDATE FIXES ACCEPTED - Transitioning to execute/critic phase\n\n{formatted_fixes}"
-    )
+        print(f"✅ Fixes validation passed: {len(valid_candidates)} valid candidate fixes submitted")
+
+        # TRIGGER EXECUTE PHASE DIRECTLY FROM TOOL
+        trigger_execute_phase(valid_candidates)
+
+        # Return formatted confirmation - this will be used by the LATS agent
+        formatted_fixes = "\n".join(
+            [
+                f"Fix {i + 1}: {fix.description} ({len(fix.modified_files)} files)"
+                for i, fix in enumerate(valid_candidates)
+            ]
+        )
+
+        return (
+            f"🎯 CANDIDATE FIXES ACCEPTED - Transitioning to execute/critic phase\n\n{formatted_fixes}"
+        )
+
+    except Exception as e:
+        error_msg = f"❌ Error validating fixes: {str(e)}"
+        print(error_msg)
+        return error_msg
 
 
 # =============================================================================
