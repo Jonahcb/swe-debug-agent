@@ -1,6 +1,5 @@
-"""Linting utilities for validating code changes."""
+"""Linting utilities for validating code changes using sglang pre-commit."""
 
-import ast
 import subprocess
 import tempfile
 import os
@@ -29,122 +28,115 @@ class LintResult:
 
 
 class CodeLinter:
-    """Utility class for linting Python code."""
+    """Utility class for linting Python code using sglang pre-commit hooks."""
 
-    def __init__(self):
-        pass
-
-    def check_python_ast(self, code: str, file_path: str = "<string>") -> LintResult:
-        """Check Python code for AST parsing errors.
+    def __init__(self, pre_commit_cmd: Optional[List[str]] = None):
+        """Initialize the linter.
 
         Args:
-            code: The Python code to check
-            file_path: File path for error reporting
-
-        Returns:
-            LintResult with any syntax errors found
+            pre_commit_cmd: Command to run for linting. Defaults to sglang pre-commit command.
         """
-        try:
-            ast.parse(code, filename=file_path)
-            return LintResult(success=True, errors=[], output="")
-        except SyntaxError as e:
-            error = LintError(
-                file_path=file_path,
-                line=e.lineno or 1,
-                column=e.offset or 1,
-                code="E999",
-                message=f"SyntaxError: {e.msg}",
-                severity="error"
-            )
-            return LintResult(success=False, errors=[error], output=str(e))
-        except Exception as e:
-            error = LintError(
-                file_path=file_path,
-                line=1,
-                column=1,
-                code="E999",
-                message=f"AST Error: {str(e)}",
-                severity="error"
-            )
-            return LintResult(success=False, errors=[error], output=str(e))
+        if pre_commit_cmd is None:
+            self.pre_commit_cmd = ["pre-commit", "run", "--all-files"]
+        else:
+            self.pre_commit_cmd = pre_commit_cmd
 
-    def run_ruff_check(self, repo_path: str, file_path: Optional[str] = None) -> LintResult:
-        """Run ruff check on the repository or a specific file.
+    def run_sglang_pre_commit(self, repo_path: str, file_path: Optional[str] = None) -> LintResult:
+        """Run sglang pre-commit checks on the repository.
 
         Args:
             repo_path: Path to the repository root
             file_path: Optional specific file to check (relative to repo_path)
 
         Returns:
-            LintResult with ruff check results
+            LintResult with pre-commit check results
         """
-        target_path = file_path if file_path else repo_path
-
         try:
-            # Run ruff check with JSON output
-            cmd = ["ruff", "check", target_path, "--output-format", "json"]
+            # Run pre-commit command
+            cmd = self.pre_commit_cmd.copy()
             result = subprocess.run(
                 cmd,
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=120  # Longer timeout for pre-commit as it may run multiple tools
             )
 
-            errors = []
-            if result.stdout:
-                try:
-                    import json
-                    issues = json.loads(result.stdout)
-                    errors = [
-                        LintError(
-                            file_path=issue.get("filename", ""),
-                            line=issue.get("location", {}).get("row", 0),
-                            column=issue.get("location", {}).get("column", 0),
-                            code=issue.get("code", ""),
-                            message=issue.get("message", ""),
-                            severity="error" if issue.get("code", "").startswith("E") else "warning"
-                        )
-                        for issue in issues
-                    ]
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, create a single error with the raw output
-                    errors = [LintError(
-                        file_path=target_path,
-                        line=1,
-                        column=1,
-                        code="RUFF001",
-                        message="Failed to parse ruff output",
-                        severity="error"
-                    )]
-
+            # Pre-commit returns 0 for success, non-zero for failure
             success = result.returncode == 0
-            output = result.stdout + (result.stderr if result.stderr else "")
 
-            return LintResult(success=success, errors=errors, output=output)
+            # Parse output to extract errors
+            errors = []
+            output_lines = result.stdout.split('\n') + result.stderr.split('\n')
+
+            # Look for failed checks in the output
+            current_file = None
+            for line in output_lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Try to identify file paths and error messages
+                if line.startswith(('Failed', 'Error', 'SyntaxError')) or 'error' in line.lower():
+                    if current_file:
+                        errors.append(LintError(
+                            file_path=current_file,
+                            line=1,  # We don't have line info from pre-commit output
+                            column=1,
+                            code="PRECOMMIT001",
+                            message=line,
+                            severity="error"
+                        ))
+                    else:
+                        # General error not associated with a specific file
+                        errors.append(LintError(
+                            file_path=file_path or repo_path,
+                            line=1,
+                            column=1,
+                            code="PRECOMMIT002",
+                            message=line,
+                            severity="error"
+                        ))
+
+            # If no specific errors were parsed but command failed, create a general error
+            if not success and not errors:
+                errors.append(LintError(
+                    file_path=file_path or repo_path,
+                    line=1,
+                    column=1,
+                    code="PRECOMMIT003",
+                    message="Pre-commit checks failed",
+                    severity="error"
+                ))
+
+            combined_output = result.stdout
+            if result.stderr:
+                combined_output += "\nSTDERR:\n" + result.stderr
+
+            return LintResult(success=success, errors=errors, output=combined_output)
 
         except subprocess.TimeoutExpired:
             return LintResult(
                 success=False,
                 errors=[LintError(
-                    file_path=target_path,
+                    file_path=file_path or repo_path,
                     line=1,
                     column=1,
                     code="TIMEOUT",
-                    message="Ruff check timed out",
+                    message="Pre-commit checks timed out",
                     severity="error"
                 )],
-                output="Ruff check timed out after 30 seconds"
+                output="Pre-commit checks timed out after 120 seconds"
             )
         except Exception as e:
             return LintResult(
                 success=False,
                 errors=[LintError(
-                    file_path=target_path,
+                    file_path=file_path or repo_path,
                     line=1,
                     column=1,
-                    code="RUFF002",
-                    message=f"Ruff check failed: {str(e)}",
+                    code="PRECOMMIT004",
+                    message=f"Pre-commit check failed: {str(e)}",
                     severity="error"
                 )],
                 output=str(e)
@@ -157,7 +149,7 @@ class CodeLinter:
         old_string: str,
         new_string: str
     ) -> Tuple[bool, List[LintError], str]:
-        """Validate a single fix by applying it and running linters.
+        """Validate a single fix by applying it and running sglang pre-commit checks.
 
         Args:
             repo_path: Path to the repository root
@@ -197,23 +189,39 @@ class CodeLinter:
 
         modified_content = original_content.replace(old_string, new_string, 1)
 
-        # Run AST check on the modified content
-        ast_result = self.check_python_ast(modified_content, file_path)
+        # Write the modified content back to the file temporarily
+        try:
+            with open(full_file_path, 'w', encoding='utf-8') as f:
+                f.write(modified_content)
+        except Exception as e:
+            return False, [LintError(
+                file_path=file_path,
+                line=1,
+                column=1,
+                code="FILE002",
+                message=f"Cannot write modified file: {str(e)}",
+                severity="error"
+            )], f"Cannot write modified file: {str(e)}"
 
-        # If AST check fails, return immediately
-        if not ast_result.success:
-            return False, ast_result.errors, ast_result.output
+        try:
+            # Run sglang pre-commit checks on the entire repo
+            pre_commit_result = self.run_sglang_pre_commit(repo_path, file_path)
 
-        # Run ruff check on the entire repo (since changes might affect imports/other files)
-        ruff_result = self.run_ruff_check(repo_path)
+            success = pre_commit_result.success
+            all_errors = pre_commit_result.errors
+            combined_output = f"SGLang Pre-commit Check: {pre_commit_result.output}"
 
-        # Combine errors from both linters
-        all_errors = ast_result.errors + ruff_result.errors
-        combined_output = f"AST Check: {ast_result.output}\nRuff Check: {ruff_result.output}"
+            return success, all_errors, combined_output
 
-        success = ast_result.success and ruff_result.success
-
-        return success, all_errors, combined_output
+        finally:
+            # Always restore the original file content, even if linting fails
+            try:
+                with open(full_file_path, 'w', encoding='utf-8') as f:
+                    f.write(original_content)
+            except Exception as restore_error:
+                # If we can't restore, that's a problem but don't mask the original linting result
+                print(f"Warning: Could not restore original file content: {restore_error}")
+                pass
 
     def validate_multiple_fixes(
         self,
@@ -239,6 +247,10 @@ class CodeLinter:
         return results
 
 
-def create_linter() -> CodeLinter:
-    """Factory function to create a CodeLinter instance."""
-    return CodeLinter()
+def create_linter(pre_commit_cmd: Optional[List[str]] = None) -> CodeLinter:
+    """Factory function to create a CodeLinter instance.
+
+    Args:
+        pre_commit_cmd: Optional custom pre-commit command. Defaults to sglang pre-commit.
+    """
+    return CodeLinter(pre_commit_cmd)
